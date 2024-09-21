@@ -1,0 +1,44 @@
+/*-- scss:defaults --*/
+
+$font-size-root: 11px;
+$card-border-width: 0px;
+
+$bslib-spacer: .5rem;
+$bs-card-spacer-y: .5rem;
+$bs-card-spacer-y: .5rem;
+
+/*-- scss:rules --*/
+
+
+.rt-td-inner {
+    padding: 6px;
+}
+
+.rt-th-inner {
+  padding: 6px;
+}
+
+.reactable {
+  border: 1px solid hsl(14, 28.80%, 88.40%);
+  border-radius: 3px;
+}
+
+.my-header1 {
+  font-size: 1.85rem;
+  font-weight: 700;
+}
+
+.my-header2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.my-header3 {
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.no-bottom-marg {
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
