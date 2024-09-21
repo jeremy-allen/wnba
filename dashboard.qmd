@@ -1,0 +1,804 @@
+--- 
+title: "Meet the WNBA"
+author: "by Jeremy Allen"
+format:
+  dashboard:
+    scrolling: true
+    embed-resources: true
+theme:
+  - united
+  - styles.scss
+---
+
+
+```{r packages}
+library(sparkline)
+library(htmltools)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(lubridate)
+library(stringr)
+library(wehoop)
+library(ggrepel)
+library(reactable)
+library(purrr)
+
+```
+
+
+```{r data}
+dat <- load_wnba_player_box(seasons = c(2004:2024))
+#dat <- readRDS("dat.rds")
+
+athletes <- dat |>
+  select(athlete_id, athlete_display_name)
+
+dat <- dat |> 
+  filter(team_id < 90)
+
+```
+
+```{r dataprep}
+
+# functions
+
+player_stats <- function(data, season_type = 2, my_season = NULL) {
+  dat <- data |>  
+    filter(season_type == season_type)
+
+  if (!is.null(my_season)) {
+    dat <- dat %>%
+      filter(season == my_season)
+  }
+  
+  result <- dat |> 
+  replace_na(list(points = 0)) |> 
+  summarise(
+    position = paste(
+        unique(athlete_position_name),
+        collapse = ", "
+    ),
+    total_games = if_else(
+        nchar(n_distinct(game_id, na.rm = TRUE)) == 1,
+        as.integer(paste0("0", n_distinct(game_id, na.rm = TRUE))),
+        as.integer((n_distinct(game_id, na.rm = TRUE)))
+    ),
+    total_seasons = if_else(
+        !is.null(my_season),
+        1,
+        n_distinct(season, na.rm = TRUE)
+    ),
+    seasons = if_else(
+        n_distinct(season, na.rm = TRUE) != 1,
+        paste(range(season, na.rm = TRUE), collapse = "-"),
+        as.character(range(season, na.rm = TRUE), collapse = "-")[[1]]
+    ),
+    latest_team = last(team_display_name),
+    total_points = sum(points, na.rm = TRUE),
+    ppg = list(points),
+    goals_made = sum(field_goals_made, na.rm = TRUE),
+    threes_made = sum(three_point_field_goals_made, na.rm = TRUE),
+    frees_made = sum(free_throws_made, na.rm = TRUE),
+    total_assists = sum(assists, na.rm = TRUE),
+    total_rebounds = sum(rebounds, na.rm = TRUE),
+    total_steals = sum(steals, na.rm = TRUE),
+    total_blocks = sum(blocks, na.rm = TRUE),
+    total_turnovers = sum(turnovers, na.rm = TRUE),
+    total_fouls = sum(fouls, na.rm = TRUE),
+    total_ejections = sum(ejected, na.rm = TRUE),
+    .by = athlete_display_name
+  ) |> 
+  rename(
+    athlete = athlete_display_name
+  ) |> 
+    arrange(desc(total_points))
+
+  if (!is.null(my_season)) {
+    result |> 
+      select(-total_seasons)
+  } else {
+    result
+  }
+}
+
+player_doubles <- function(data, season_type = 2, my_season = NULL) {
+  dat <- data |>  
+    filter(season_type == season_type)
+
+  if (!is.null(my_season)) {
+    dat <- dat %>%
+      filter(season == my_season)
+  }
+  
+  dat |>
+    select(
+      athlete = athlete_display_name,
+      game_id,
+      points,
+      rebounds,
+      assists,
+      steals,
+      blocks
+    ) |>
+    mutate(game_id = as.character(game_id)) |> 
+    arrange(game_id) |> 
+    mutate(
+      across(
+        points:blocks,
+        \(x) if_else(is.na(x) | x < 10, FALSE, TRUE)
+      )
+    ) |> 
+    mutate(
+        doubles = as.integer(
+          rowSums(
+            pick(where(
+                ~ is.logical(.x)
+            ))
+          )
+        )
+    ) |> 
+    mutate(
+        doubles_type = case_when(
+            doubles == 2 ~ "double_double",
+            doubles == 3 ~ "triple_double",
+            doubles == 4 ~ "quadruple_double",
+            doubles == 5 ~ "quintuple_double",
+            .default = "other"
+        )
+    ) |> 
+    select(game_id, athlete, doubles_type) |> 
+    count(athlete, doubles_type) |>  
+    pivot_wider(
+        names_from = doubles_type,
+        values_from = n
+    ) |> 
+    replace_na(
+      list(double_double = 0, triple_double = 0)
+    ) |> 
+    mutate(
+      double_double = if_else(
+        triple_double > 0, double_double + triple_double, double_double
+      )
+    ) |> 
+    select(athlete, triple_double, double_double)
+}
+
+pdat <- player_stats(data = dat)
+
+player_seasons <- pdat |> 
+    select(athlete, total_seasons, seasons)
+
+doubles <- player_doubles(data = dat)
+
+main_stats <- pdat |> 
+  select(
+    athlete,
+    total_points,
+    total_assists,
+    total_rebounds,
+    total_steals,
+    total_blocks,
+    position,
+    latest_team
+  )
+
+doubles <- doubles |> 
+  left_join(main_stats, by = join_by(athlete)) |> 
+  left_join(
+    player_seasons,
+    by = join_by(athlete)
+  ) |> 
+    arrange(desc(total_points))
+
+```
+
+```{r data24prep}
+
+pdat24 <- player_stats(data = dat, my_season = 2024)
+doubles24 <- player_doubles(data = dat, my_season = 2024)
+
+main_stats24 <- pdat24 |> 
+  select(
+    athlete,
+    total_points,
+    ppg,
+    total_assists,
+    total_rebounds,
+    total_steals,
+    total_blocks,
+    position,
+    latest_team
+  )
+
+doubles24 <- doubles24 |> 
+  left_join(main_stats24, by = join_by(athlete)) |> 
+  left_join(
+    pdat |> select(athlete, seasons_played = seasons),
+    by = join_by(athlete)
+  ) |> 
+    arrange(desc(total_points))
+```
+
+```{r rookies}
+
+rookies <- function(data, my_season = NULL) {
+  if (is.null(my_season)) {
+    my_season <- year(now())
+  }
+  
+  data |> 
+    filter(total_seasons == 1 & seasons == my_season)
+}
+
+```
+
+```{r statsdata}
+
+stat <- function(data, col, ...) {
+  if (n_distinct(data$seasons) > 1) {
+    data |> 
+      select(athlete, position, {{ col }}, total_seasons, seasons) |> 
+      arrange(desc({{ col }})) |> 
+      slice(1:150) |> 
+      mutate(rank = row_number()) |> 
+      select(rank, athlete, position, {{ col }}, total_seasons, seasons)
+  } else if (n_distinct(data$seasons) == 1) {
+    data |>  
+      select(athlete, position, {{ col }}, seasons) |>
+      arrange(desc({{ col }})) |> 
+      slice(1:150) |> 
+      mutate(rank = row_number()) |> 
+      select(rank, athlete, position, {{ col }}, seasons)
+  }
+}
+
+
+# dfs for all time stats
+
+stat_names <- c("total_games", "total_points", "goals_made", "threes_made", 
+                "total_assists", "total_rebounds", "total_steals", 
+                "total_blocks", "total_turnovers", "total_fouls")
+
+stat_dfs <- stat_names %>%
+  set_names() %>%
+  map(~stat(pdat, col = !!sym(.x)))
+
+
+# dfs for 2024 stats
+
+stat24_dfs <- stat_names %>%
+  set_names() %>%
+  map(~stat(pdat24, col = !!sym(.x)))
+
+# max width for columns in reactables
+sm <- 50
+md <- 70
+lg <- 110
+
+```
+
+# 2024
+
+## Row {height=400px}
+
+```{r doubles24}
+doubles24 |> 
+  reactable(
+    compact = FALSE,
+    highlight = TRUE,
+    filterable = TRUE,
+    defaultPageSize = 20,
+    columns = list(
+      ppg = colDef(
+        name = 'per_game',
+        minWidth = 240,
+        cell = function(values) {
+        sparkline(rev(values), type = "bar", chartRangeMin = 0, chartRangeMax = max(dat$points, na.rm = TRUE), width = 240, barColor = "#ffffff", barWidth = 4, barSpacing = 1, zeroColor = "#999999", nullColor = "#000000")
+        }
+      )
+    ),
+    theme = reactableTheme(
+        color = "hsl(20, 69.20%, 97.50%)",
+        backgroundColor = "hsl(17, 73.90%, 59.40%)",
+        borderColor = "hsl(0, 0.00%, 100.00%)",
+        highlightColor = "hsl(24, 100.00%, 44.90%)",
+        inputStyle = list(backgroundColor = "hsl(24, 100.00%, 44.90%)"),
+        selectStyle = list(backgroundColor = "hsl(25, 91.50%, 67.60%)"),
+        pageButtonHoverStyle = list(backgroundColor = "hsl(26, 100.00%, 55.50%)"),
+        pageButtonActiveStyle = list(backgroundColor = "hsl(25, 100.00%, 56.70%)")
+    )
+  )
+```
+
+## Row {height=300px}
+
+```{r tp24}
+stat24_dfs$total_points |> 
+  reactable(
+    compact = TRUE,
+    highlight = TRUE,
+    filterable = TRUE,
+    defaultPageSize = 20,
+    defaultSorted = list(rank = "asc"),
+    theme = reactableTheme(
+        backgroundColor = "hsl(14, 28.80%, 88.40%)",
+        inputStyle = list(backgroundColor = "hsl(18, 29.40%, 93.30%)")
+    ),
+    columns = list(
+      rank = colDef(maxWidth = sm),
+      position = colDef(maxWidth = md),
+      seasons = colDef(maxWidth = md),
+      total_points = colDef(name = "POINTS",
+      headerClass = "my-header3",
+      style = list(fontWeight = "bold"))
+    )
+  )
+```
+
+```{r ta24}
+stat24_dfs$total_assists |> 
+  reactable(
+    compact = TRUE,
+    highlight = TRUE,
+    filterable = TRUE,
+    defaultPageSize = 20,
+    defaultSorted = list(rank = "asc"),
+    theme = reactableTheme(
+        backgroundColor = "hsl(14, 28.80%, 88.40%)",
+        inputStyle = list(backgroundColor = "hsl(18, 29.40%, 93.30%)")
+    ),
+    columns = list(
+      rank = colDef(maxWidth = sm),
+      position = colDef(maxWidth = md),
+      seasons = colDef(maxWidth = md),
+      total_assists = colDef(name = "ASSISTS",
+      headerClass = "my-header3",
+      style = list(fontWeight = "bold"))
+    )
+  )
+```
+
+```{r tr24}
+stat24_dfs$total_rebounds |> 
+  reactable(
+    compact = TRUE,
+    highlight = TRUE,
+    filterable = TRUE,
+    defaultPageSize = 20,
+    defaultSorted = list(rank = "asc"),
+    theme = reactableTheme(
+        backgroundColor = "hsl(14, 28.80%, 88.40%)",
+        inputStyle = list(backgroundColor = "hsl(18, 29.40%, 93.30%)")
+    ),
+    columns = list(
+      rank = colDef(maxWidth = sm),
+      position = colDef(maxWidth = md),
+      seasons = colDef(maxWidth = md),
+      total_rebounds = colDef(name = "REBOUNDS",
+      headerClass = "my-header3",
+      style = list(fontWeight = "bold"))
+    )
+  )
+```
+
+## Row {height=300px}
+
+```{r ts24}
+stat24_dfs$total_steals |> 
+  reactable(
+    compact = TRUE,
+    highlight = TRUE,
+    filterable = TRUE,
+    defaultPageSize = 20,
+    defaultSorted = list(rank = "asc"),
+    theme = reactableTheme(
+        backgroundColor = "hsl(14, 28.80%, 88.40%)",
+        inputStyle = list(backgroundColor = "hsl(18, 29.40%, 93.30%)")
+    ),
+    columns = list(
+      rank = colDef(maxWidth = sm),
+      position = colDef(maxWidth = md),
+      seasons = colDef(maxWidth = md),
+      total_steals = colDef(name = "STEALS",
+      headerClass = "my-header3",
+      style = list(fontWeight = "bold"))
+    )
+  )
+```
+
+```{r tb24}
+stat24_dfs$total_blocks |> 
+  reactable(
+    compact = TRUE,
+    highlight = TRUE,
+    filterable = TRUE,
+    defaultPageSize = 20,
+    defaultSorted = list(rank = "asc"),
+    theme = reactableTheme(
+        backgroundColor = "hsl(14, 28.80%, 88.40%)",
+        inputStyle = list(backgroundColor = "hsl(18, 29.40%, 93.30%)")
+    ),
+    columns = list(
+      rank = colDef(maxWidth = sm),
+      position = colDef(maxWidth = md),
+      seasons = colDef(maxWidth = md),
+      total_blocks = colDef(name = "BLOCKS",
+      headerClass = "my-header3",
+      style = list(fontWeight = "bold"))
+    )
+  )
+```
+
+```{r gm24}
+stat24_dfs$goals_made |> 
+  reactable(
+    compact = TRUE,
+    highlight = TRUE,
+    filterable = TRUE,
+    defaultPageSize = 20,
+    defaultSorted = list(rank = "asc"),
+    theme = reactableTheme(
+        backgroundColor = "hsl(14, 28.80%, 88.40%)",
+        inputStyle = list(backgroundColor = "hsl(18, 29.40%, 93.30%)")
+    ),
+    columns = list(
+      rank = colDef(maxWidth = sm),
+      position = colDef(maxWidth = md),
+      seasons = colDef(maxWidth = md),
+      goals_made = colDef(name = "GOALS",
+      headerClass = "my-header3",
+      style = list(fontWeight = "bold"))
+    )
+  )
+```
+
+## Row {height=300px}
+
+```{r tm24}
+stat24_dfs$threes_made |> 
+  reactable(
+    compact = TRUE,
+    highlight = TRUE,
+    filterable = TRUE,
+    defaultPageSize = 20,
+    defaultSorted = list(rank = "asc"),
+    theme = reactableTheme(
+        backgroundColor = "hsl(14, 28.80%, 88.40%)",
+        inputStyle = list(backgroundColor = "hsl(18, 29.40%, 93.30%)")
+    ),
+    columns = list(
+      rank = colDef(maxWidth = sm),
+      position = colDef(maxWidth = md),
+      seasons = colDef(maxWidth = md),
+      threes_made = colDef(name = "THREES",
+      headerClass = "my-header3",
+      style = list(fontWeight = "bold"))
+    )
+  )
+```
+
+```{r tt24}
+stat24_dfs$total_turnovers |> 
+  reactable(
+    compact = TRUE,
+    highlight = TRUE,
+    filterable = TRUE,
+    defaultPageSize = 20,
+    defaultSorted = list(rank = "asc"),
+    theme = reactableTheme(
+        backgroundColor = "hsl(14, 28.80%, 88.40%)",
+        inputStyle = list(backgroundColor = "hsl(18, 29.40%, 93.30%)")
+    ),
+    columns = list(
+      rank = colDef(maxWidth = sm),
+      position = colDef(maxWidth = md),
+      seasons = colDef(maxWidth = md),
+      total_turnovers = colDef(name = "T-OVERS",
+      headerClass = "my-header3",
+      style = list(fontWeight = "bold"))
+    )
+  )
+```
+
+```{r tf24}
+stat24_dfs$total_fouls |> 
+  reactable(
+    compact = TRUE,
+    highlight = TRUE,
+    filterable = TRUE,
+    defaultPageSize = 20,
+    defaultSorted = list(rank = "asc"),
+    theme = reactableTheme(
+        backgroundColor = "hsl(14, 28.80%, 88.40%)",
+        inputStyle = list(backgroundColor = "hsl(18, 29.40%, 93.30%)")
+    ),
+    columns = list(
+      rank = colDef(maxWidth = sm),
+      position = colDef(maxWidth = md),
+      seasons = colDef(maxWidth = md),
+      total_fouls = colDef(name = "FOULS",
+      headerClass = "my-header3",
+      style = list(fontWeight = "bold"))
+    )
+  )
+```
+
+# Just Rookies
+
+## Row {height=600px}
+
+```{r rookietable}
+doubles24 |> 
+  filter(seasons_played == "2024") |> 
+  reactable(
+    compact = TRUE,
+    highlight = TRUE,
+    filterable = TRUE,
+    defaultPageSize = 30,
+    columns = list(
+      ppg = colDef(
+        name = 'per_game',
+        minWidth = 240,
+        cell = function(values) {
+        sparkline(rev(values), type = "bar", chartRangeMin = 0, chartRangeMax = max(dat$points, na.rm = TRUE), width = 240, barColor = "#ffffff", barWidth = 4, barSpacing = 1, zeroColor = "#999999", nullColor = "#000000")
+        }
+      )
+    ),
+    theme = reactableTheme(
+        color = "hsl(20, 69.20%, 97.50%)",
+        backgroundColor = "hsl(17, 73.90%, 59.40%)",
+        borderColor = "hsl(0, 0.00%, 100.00%)",
+        highlightColor = "hsl(24, 100.00%, 44.90%)",
+        inputStyle = list(backgroundColor = "hsl(24, 100.00%, 44.90%)"),
+        selectStyle = list(backgroundColor = "hsl(25, 91.50%, 67.60%)"),
+        pageButtonHoverStyle = list(backgroundColor = "hsl(26, 100.00%, 55.50%)"),
+        pageButtonActiveStyle = list(backgroundColor = "hsl(25, 100.00%, 56.70%)")
+    )
+  )
+```
+
+# All Time
+
+## Row {height=300px}
+
+```{r alldoubles}
+doubles |> 
+  reactable(
+    compact = TRUE,
+    highlight = TRUE,
+    filterable = TRUE,
+    defaultPageSize = 20,
+    theme = reactableTheme(
+        color = "hsl(20, 69.20%, 97.50%)",
+        backgroundColor = "hsl(17, 73.90%, 59.40%)",
+        borderColor = "hsl(0, 0.00%, 100.00%)",
+        highlightColor = "hsl(24, 100.00%, 44.90%)",
+        inputStyle = list(backgroundColor = "hsl(24, 100.00%, 44.90%)"),
+        selectStyle = list(backgroundColor = "hsl(25, 91.50%, 67.60%)"),
+        pageButtonHoverStyle = list(backgroundColor = "hsl(26, 100.00%, 55.50%)"),
+        pageButtonActiveStyle = list(backgroundColor = "hsl(25, 100.00%, 56.70%)")
+    )
+  )
+```
+
+## Row {height=300px}
+
+```{r tp}
+stat_dfs$total_points |> 
+  reactable(
+    compact = TRUE,
+    highlight = TRUE,
+    filterable = TRUE,
+    defaultPageSize = 20,
+    theme = reactableTheme(
+        backgroundColor = "hsl(14, 28.80%, 88.40%)",
+        inputStyle = list(backgroundColor = "hsl(18, 29.40%, 93.30%)")
+    ),
+    columns = list(
+      rank = colDef(maxWidth = sm),
+      position = colDef(maxWidth = md),
+      total_seasons = colDef(maxWidth = sm),
+      seasons = colDef(maxWidth = lg),
+      total_points = colDef(name = "POINTS",
+      headerClass = "my-header3",
+      style = list(fontWeight = "bold"))
+    )
+  )
+```
+
+```{r ta}
+stat_dfs$total_assists |> 
+  reactable(
+    compact = TRUE,
+    highlight = TRUE,
+    filterable = TRUE,
+    defaultPageSize = 20,
+    theme = reactableTheme(
+        backgroundColor = "hsl(14, 28.80%, 88.40%)",
+        inputStyle = list(backgroundColor = "hsl(18, 29.40%, 93.30%)")
+    ),
+    columns = list(
+      rank = colDef(maxWidth = sm),
+      position = colDef(maxWidth = md),
+      total_seasons = colDef(maxWidth = sm),
+      seasons = colDef(maxWidth = lg),
+      total_assists = colDef(name = "ASSISTS",
+      headerClass = "my-header3",
+      style = list(fontWeight = "bold"))
+    )
+  )
+```
+
+```{r tr}
+stat_dfs$total_rebounds |> 
+  reactable(
+    compact = TRUE,
+    highlight = TRUE,
+    filterable = TRUE,
+    defaultPageSize = 20,
+    theme = reactableTheme(
+        backgroundColor = "hsl(14, 28.80%, 88.40%)",
+        inputStyle = list(backgroundColor = "hsl(18, 29.40%, 93.30%)")
+    ),
+    columns = list(
+      rank = colDef(maxWidth = sm),
+      position = colDef(maxWidth = md),
+      total_seasons = colDef(maxWidth = sm),
+      seasons = colDef(maxWidth = lg),
+      total_rebounds = colDef(name = "REBOUNDS",
+      headerClass = "my-header3",
+      style = list(fontWeight = "bold"))
+    )
+  )
+```
+
+## Row {height=300px}
+
+```{r ts}
+stat_dfs$total_steals |> 
+  reactable(
+    compact = TRUE,
+    highlight = TRUE,
+    filterable = TRUE,
+    defaultPageSize = 20,
+    theme = reactableTheme(
+        backgroundColor = "hsl(14, 28.80%, 88.40%)",
+        inputStyle = list(backgroundColor = "hsl(18, 29.40%, 93.30%)")
+    ),
+    columns = list(
+      rank = colDef(maxWidth = sm),
+      position = colDef(maxWidth = md),
+      total_seasons = colDef(maxWidth = sm),
+      seasons = colDef(maxWidth = lg),
+      total_steals = colDef(name = "STEALS",
+      headerClass = "my-header3",
+      style = list(fontWeight = "bold"))
+    )
+  )
+```
+
+```{r tb}
+stat_dfs$total_blocks |> 
+  reactable(
+    compact = TRUE,
+    highlight = TRUE,
+    filterable = TRUE,
+    defaultPageSize = 20,
+    theme = reactableTheme(
+        backgroundColor = "hsl(14, 28.80%, 88.40%)",
+        inputStyle = list(backgroundColor = "hsl(18, 29.40%, 93.30%)")
+    ),
+    columns = list(
+      rank = colDef(maxWidth = sm),
+      position = colDef(maxWidth = md),
+      total_seasons = colDef(maxWidth = sm),
+      seasons = colDef(maxWidth = lg),
+      total_blocks = colDef(name = "BLOCKS",
+      headerClass = "my-header3",
+      style = list(fontWeight = "bold"))
+    )
+  )
+```
+
+```{r gm}
+stat_dfs$goals_made |> 
+  reactable(
+    compact = TRUE,
+    highlight = TRUE,
+    filterable = TRUE,
+    defaultPageSize = 20,
+    theme = reactableTheme(
+        backgroundColor = "hsl(14, 28.80%, 88.40%)",
+        inputStyle = list(backgroundColor = "hsl(18, 29.40%, 93.30%)")
+    ),
+    columns = list(
+      rank = colDef(maxWidth = sm),
+      position = colDef(maxWidth = md),
+      total_seasons = colDef(maxWidth = sm),
+      seasons = colDef(maxWidth = lg),
+      goals_made = colDef(name = "GOALS",
+      headerClass = "my-header3",
+      style = list(fontWeight = "bold"))
+    )
+  )
+```
+
+## Row {height=300px}
+
+```{r tm}
+stat_dfs$threes_made |> 
+  reactable(
+    compact = TRUE,
+    highlight = TRUE,
+    filterable = TRUE,
+    defaultPageSize = 20,
+    theme = reactableTheme(
+        backgroundColor = "hsl(14, 28.80%, 88.40%)",
+        inputStyle = list(backgroundColor = "hsl(18, 29.40%, 93.30%)")
+    ),
+    columns = list(
+      rank = colDef(maxWidth = sm),
+      position = colDef(maxWidth = md),
+      total_seasons = colDef(maxWidth = sm),
+      seasons = colDef(maxWidth = lg),
+      threes_made = colDef(name = "THREES",
+      headerClass = "my-header3",
+      style = list(fontWeight = "bold"))
+    )
+  )
+```
+
+```{r tt}
+stat_dfs$total_turnovers |> 
+  reactable(
+    compact = TRUE,
+    highlight = TRUE,
+    filterable = TRUE,
+    defaultPageSize = 20,
+    theme = reactableTheme(
+        backgroundColor = "hsl(14, 28.80%, 88.40%)",
+        inputStyle = list(backgroundColor = "hsl(18, 29.40%, 93.30%)")
+    ),
+    columns = list(
+      rank = colDef(maxWidth = sm),
+      position = colDef(maxWidth = md),
+      total_seasons = colDef(maxWidth = sm),
+      seasons = colDef(maxWidth = lg),
+      total_turnovers = colDef(name = "T-OVERS",
+      headerClass = "my-header3",
+      style = list(fontWeight = "bold"))
+    )
+  )
+```
+
+```{r tf}
+stat_dfs$total_fouls |> 
+  reactable(
+    compact = TRUE,
+    highlight = TRUE,
+    filterable = TRUE,
+    defaultPageSize = 20,
+    theme = reactableTheme(
+        backgroundColor = "hsl(14, 28.80%, 88.40%)",
+        inputStyle = list(backgroundColor = "hsl(18, 29.40%, 93.30%)")
+    ),
+    columns = list(
+      rank = colDef(maxWidth = sm),
+      position = colDef(maxWidth = md),
+      total_seasons = colDef(maxWidth = sm),
+      seasons = colDef(maxWidth = lg),
+      total_fouls = colDef(name = "FOULS",
+      headerClass = "my-header3",
+      style = list(fontWeight = "bold"))
+    )
+  )
+```
+
+# Teams
+
+Coming soon
+
+# Team Data
+
+Coming soon
