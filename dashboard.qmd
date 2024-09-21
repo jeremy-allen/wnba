@@ -271,6 +271,10 @@ stat24_dfs <- stat_names %>%
   set_names() %>%
   map(~stat(pdat24, col = !!sym(.x)))
 
+```
+
+```{r sizes}
+
 # max width for columns in reactables
 sm <- 50
 md <- 70
