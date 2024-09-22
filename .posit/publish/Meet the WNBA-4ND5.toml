@@ -10,7 +10,8 @@ files = [
   '/renv.lock',
   '/styles.scss',
   '/dashboard_files',
-  '/dashboard.html'
+  '/dashboard.html',
+  '/images'
 ]
 title = 'Meet the WNBA'
 
