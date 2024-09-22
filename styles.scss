@@ -3,12 +3,28 @@
 $font-size-root: 11px;
 $card-border-width: 0px;
 
+$navbar-bg: #050707 !default;
+$navbar-fg: #FFFFFF !default;
+$bs-nav-link-hover-color: #FFFFFF !default;
+$bs-nav-link-color: #FFFFFF !default;
+$bs-nav-link-active-color: #f78a37 !default;
+
 $bslib-spacer: .5rem;
 $bs-card-spacer-y: .5rem;
 $bs-card-spacer-y: .5rem;
 
 /*-- scss:rules --*/
 
+.quarto-dashboard .navbar .navbar-nav .active {
+  background-image: url("images/logo.png");
+  background-position: left;
+  background-repeat: no-repeat;
+  background-size: 20px;
+}
+
+.nav-link:hover, .nav-link:focus, .nav-link:active {
+  color: #f78a37 !important;
+}
 
 .rt-td-inner {
     padding: 6px;

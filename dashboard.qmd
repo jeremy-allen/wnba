@@ -1,6 +1,5 @@
 --- 
 title: "Meet the WNBA"
-author: "by Jeremy Allen"
 format:
   dashboard:
     scrolling: true
@@ -299,20 +298,32 @@ lg <- 110
 ```
 
 ```{r tableoptions}
+
+wnba_orange <- "#f57b20"
+wnba_dark_orange <- "#e96500"
+wnba_tan <- "#efe3c6"
+wnba_gray <- "#4c4c4d"
+wnba_black <- "#050707"
+
 doubles_theme <- reactableTheme(
-  color = "hsl(20, 69.20%, 97.50%)",
-  backgroundColor = "hsl(17, 73.90%, 59.40%)",
-  borderColor = "hsl(0, 0.00%, 100.00%)",
-  highlightColor = "hsl(24, 100.00%, 44.90%)",
-  inputStyle = list(backgroundColor = "hsl(24, 100.00%, 44.90%)"),
-  selectStyle = list(backgroundColor = "hsl(25, 91.50%, 67.60%)"),
-  pageButtonHoverStyle = list(backgroundColor = "hsl(26, 100.00%, 55.50%)"),
-  pageButtonActiveStyle = list(backgroundColor = "hsl(25, 100.00%, 56.70%)")
+  color = "#FFFFFF",
+  backgroundColor = wnba_orange,
+  borderColor = wnba_tan,
+  highlightColor = wnba_black,
+  inputStyle = list(backgroundColor = wnba_dark_orange),
+  selectStyle = list(backgroundColor = wnba_orange),
+  pageButtonHoverStyle = list(backgroundColor = wnba_black),
+  pageButtonActiveStyle = list(backgroundColor = wnba_black)
 )
 
 stat_theme <- reactableTheme(
-  backgroundColor = "hsl(14, 28.80%, 88.40%)",
-  inputStyle = list(backgroundColor = "hsl(18, 29.40%, 93.30%)")
+  backgroundColor = wnba_tan,
+  borderColor = wnba_tan,
+  highlightColor = wnba_black,
+  rowHighlightStyle = list(color = wnba_tan),
+  inputStyle = list(backgroundColor = "#FFFFFF"),
+  pageButtonHoverStyle = list(backgroundColor = wnba_black, color = wnba_tan),
+  pageButtonActiveStyle = list(backgroundColor = wnba_black)
 )
 ```
 
