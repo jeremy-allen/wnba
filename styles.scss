@@ -22,7 +22,8 @@ $bs-card-spacer-y: .5rem;
   background-size: 20px;
 }
 
-.nav-link:hover, .nav-link:focus, .nav-link:active {
+.nav-link:hover, .nav-link:focus, .nav-link:active,
+.navbar .navbar-nav .active {
   color: #f78a37 !important;
 }
 
