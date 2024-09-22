@@ -39,9 +39,7 @@ dat <- dat |>
 
 ```
 
-```{r dataprep}
-
-# functions
+```{r funcs1}
 
 player_stats <- function(data, season_type = 2, my_season = NULL) {
   dat <- data |>  
@@ -76,7 +74,7 @@ player_stats <- function(data, season_type = 2, my_season = NULL) {
     ),
     latest_team = last(team_display_name),
     total_points = sum(points, na.rm = TRUE),
-    ppg = list(points),
+    ppg = list(points), # list for sparkline plots in table rows
     goals_made = sum(field_goals_made, na.rm = TRUE),
     threes_made = sum(three_point_field_goals_made, na.rm = TRUE),
     frees_made = sum(free_throws_made, na.rm = TRUE),
@@ -101,6 +99,22 @@ player_stats <- function(data, season_type = 2, my_season = NULL) {
     result
   }
 }
+
+# player points per season over entire career
+player_pps <- function(data, season_type = 2) {
+  data |>  
+    filter(season_type == season_type) |> 
+    replace_na(list(points = 0)) |> 
+    summarise(
+      points = sum(points, na.rm = TRUE),
+      .by = c(athlete_display_name, season)
+    ) |> 
+    arrange(athlete_display_name, season)
+}
+
+```
+
+```{r funcs2}
 
 player_doubles <- function(data, season_type = 2, my_season = NULL) {
   dat <- data |>  
@@ -164,12 +178,55 @@ player_doubles <- function(data, season_type = 2, my_season = NULL) {
     select(athlete, triple_double, double_double)
 }
 
-pdat <- player_stats(data = dat)
+```
+
+```{r funcs3}
+rookies <- function(data, my_season = NULL) {
+  if (is.null(my_season)) {
+    my_season <- year(now())
+  }
+  
+  data |> 
+    filter(total_seasons == 1 & seasons == my_season)
+}
+
+stat <- function(data, col, ...) {
+  if (n_distinct(data$seasons) > 1) {
+    data |> 
+      select(athlete, position, {{ col }}, total_seasons, seasons) |> 
+      arrange(desc({{ col }})) |> 
+      slice(1:150) |> 
+      mutate(rank = row_number()) |> 
+      select(rank, athlete, position, {{ col }}, total_seasons, seasons)
+  } else if (n_distinct(data$seasons) == 1) {
+    data |>  
+      select(athlete, position, {{ col }}, seasons) |>
+      arrange(desc({{ col }})) |> 
+      slice(1:150) |> 
+      mutate(rank = row_number()) |> 
+      select(rank, athlete, position, {{ col }}, seasons)
+  }
+}
+
+```
+
+```{r dataprep}
+pps <- dat |> 
+  player_pps(dat) |> 
+  arrange(athlete_display_name, season) |> 
+  summarise(
+    pps = list(points),
+    .by = athlete_display_name
+  )
+
+pdat <- dat |>
+  player_stats()
 
 player_seasons <- pdat |> 
     select(athlete, total_seasons, seasons)
 
-doubles <- player_doubles(data = dat)
+doubles <- dat |> 
+  player_doubles()
 
 main_stats <- pdat |> 
   select(
@@ -185,11 +242,13 @@ main_stats <- pdat |>
 
 doubles <- doubles |> 
   left_join(main_stats, by = join_by(athlete)) |> 
+  left_join(pps, by = join_by(athlete == athlete_display_name)) |>
   left_join(
     player_seasons,
     by = join_by(athlete)
   ) |> 
-    arrange(desc(total_points))
+    arrange(desc(total_points)) |> 
+    select(athlete, triple_double, double_double, total_points, pps, everything())
 
 ```
 
@@ -220,40 +279,7 @@ doubles24 <- doubles24 |>
     arrange(desc(total_points))
 ```
 
-```{r rookies}
-
-rookies <- function(data, my_season = NULL) {
-  if (is.null(my_season)) {
-    my_season <- year(now())
-  }
-  
-  data |> 
-    filter(total_seasons == 1 & seasons == my_season)
-}
-
-```
-
 ```{r statsdata}
-
-stat <- function(data, col, ...) {
-  if (n_distinct(data$seasons) > 1) {
-    data |> 
-      select(athlete, position, {{ col }}, total_seasons, seasons) |> 
-      arrange(desc({{ col }})) |> 
-      slice(1:150) |> 
-      mutate(rank = row_number()) |> 
-      select(rank, athlete, position, {{ col }}, total_seasons, seasons)
-  } else if (n_distinct(data$seasons) == 1) {
-    data |>  
-      select(athlete, position, {{ col }}, seasons) |>
-      arrange(desc({{ col }})) |> 
-      slice(1:150) |> 
-      mutate(rank = row_number()) |> 
-      select(rank, athlete, position, {{ col }}, seasons)
-  }
-}
-
-
 # dfs for all time stats
 
 stat_names <- c("total_games", "total_points", "goals_made", "threes_made", 
@@ -573,6 +599,16 @@ doubles |>
     highlight = TRUE,
     filterable = TRUE,
     defaultPageSize = 20,
+    columns = list(
+      pps = colDef(
+        name = 'per_season',
+        minWidth = 153,
+        maxWidth = 155,
+        cell = function(values) {
+        sparkline(values, type = "bar", width = 153, chartRangeMin = 0, barColor = "#ffffff", barWidth = 4, barSpacing = 1, zeroColor = "#999999", nullColor = "#000000")
+        }
+      )
+    ),
     theme = reactableTheme(
         color = "hsl(20, 69.20%, 97.50%)",
         backgroundColor = "hsl(17, 73.90%, 59.40%)",
