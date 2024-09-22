@@ -808,11 +808,3 @@ stat_dfs$total_fouls |>
     )
   )
 ```
-
-# Teams
-
-Coming soon
-
-# Team Data
-
-Coming soon
