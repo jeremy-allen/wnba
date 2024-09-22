@@ -5,3 +5,4 @@
 *.rds 
 themes
 scraps.R
+.lintr
