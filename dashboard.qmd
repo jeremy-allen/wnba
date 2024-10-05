@@ -22,12 +22,14 @@ library(wehoop)
 library(ggrepel)
 library(reactable)
 library(purrr)
+library(plotly)
+library(crosstalk)
 ```
 
 
 ```{r data}
-dat <- load_wnba_player_box(seasons = c(2004:2024))
-# dat <- readRDS("dat.rds")
+#dat <- load_wnba_player_box(seasons = c(2004:2024))
+dat <- readRDS("dat.rds")
 
 athletes <- dat |>
   select(athlete_id, athlete_display_name)
@@ -39,7 +41,10 @@ dat <- dat |>
 ```{r funcs1}
 player_stats <- function(data, season_type = 2, my_season = NULL) {
   dat <- data |>
-    filter(season_type == season_type)
+    filter(
+      season_type == season_type,
+      !is.na(athlete_display_name)
+      )
 
   if (!is.null(my_season)) {
     dat <- dat %>%
@@ -61,7 +66,7 @@ player_stats <- function(data, season_type = 2, my_season = NULL) {
       total_seasons = if_else(
         !is.null(my_season),
         1,
-        n_distinct(season, na.rm = TRUE)
+        as.integer(n_distinct(season, na.rm = TRUE))
       ),
       seasons = if_else(
         n_distinct(season, na.rm = TRUE) != 1,
@@ -102,7 +107,7 @@ player_pps <- function(data, season_type = 2) {
     filter(season_type == season_type) |>
     replace_na(list(points = 0)) |>
     summarise(
-      points = sum(points, na.rm = TRUE),
+      points = as.integer(sum(points, na.rm = TRUE)),
       .by = c(athlete_display_name, season)
     ) |>
     arrange(athlete_display_name, season)
@@ -174,14 +179,6 @@ player_doubles <- function(data, season_type = 2, my_season = NULL) {
 ```
 
 ```{r funcs3}
-rookies <- function(data, my_season = NULL) {
-  if (is.null(my_season)) {
-    my_season <- year(now())
-  }
-
-  data |>
-    filter(total_seasons == 1 & seasons == my_season)
-}
 
 stat <- function(data, col, ...) {
   if (n_distinct(data$seasons) > 1) {
@@ -215,7 +212,13 @@ pdat <- dat |>
   player_stats()
 
 player_seasons <- pdat |>
-  select(athlete, total_seasons, seasons)
+  select(athlete, total_games, total_seasons, seasons) |> 
+  mutate(
+    across(
+      where(is.double),
+      as.integer
+    )
+  )
 
 doubles <- dat |>
   player_doubles()
@@ -241,6 +244,9 @@ doubles <- doubles |>
   ) |>
   arrange(desc(total_points)) |>
   select(athlete, triple_double, double_double, total_points, pps, everything())
+
+doubles <- SharedData$new(doubles, group = "experience", key = ~athlete)
+
 ```
 
 ```{r data24prep}
@@ -266,7 +272,38 @@ doubles24 <- doubles24 |>
     pdat |> select(athlete, seasons_played = seasons),
     by = join_by(athlete)
   ) |>
-  arrange(desc(total_points))
+  mutate(rookie = if_else(seasons_played == year(now()), "rookie", ""))  |> 
+  arrange(desc(total_points)) |> 
+  select(athlete, rookie, everything())
+
+doubles24 <- SharedData$new(doubles24, group = "experience", key = ~athlete)
+```
+
+```{r experience-prep}
+
+seasons <- dat |> 
+  summarise(
+    n_seasons = n_distinct(season, na.rm = TRUE),
+    n_games = n_distinct(game_id, na.rm = TRUE),
+    .by = c(athlete_display_name)
+  ) |> 
+  arrange(n_seasons) |> 
+  rename(athlete = athlete_display_name) |> 
+  drop_na(athlete) |> 
+  SharedData$new(group = "experience", key = ~athlete)
+
+points <- dat |> 
+  filter(season == as.integer(year(now()))) |> 
+  summarise(
+    n_games = n_distinct(game_id, na.rm = TRUE),
+    n_points = sum(points, na.rm = TRUE),
+    .by = c(athlete_display_name)
+  ) |> 
+  arrange(n_games) |> 
+  rename(athlete = athlete_display_name) |> 
+  drop_na(athlete) |> 
+  SharedData$new(group = "experience", key = ~athlete)
+
 ```
 
 ```{r statsdata}
@@ -305,6 +342,8 @@ wnba_tan <- "#efe3c6"
 wnba_gray <- "#4c4c4d"
 wnba_black <- "#050707"
 
+court_ratio <- 1/1.88
+
 doubles_theme <- reactableTheme(
   color = "#FFFFFF",
   backgroundColor = wnba_orange,
@@ -338,6 +377,9 @@ doubles24 |>
     highlight = TRUE,
     filterable = TRUE,
     defaultPageSize = 20,
+    selection = "multiple",
+    onClick = "select",
+    rowStyle = list(cursor = "pointer"),
     theme = doubles_theme,
     columns = list(
       ppg = colDef(
@@ -351,15 +393,57 @@ doubles24 |>
   )
 ```
 
+```{r points}
+points_plot <- points |> 
+  ggplot(aes(x = n_games, y = n_points, group = athlete)) +
+  geom_point(size = 2, color = wnba_orange)  +
+  labs(
+    title = "Points this Season",
+    subtitle = "each dot is a player - select players in the tables",
+    x = "Games Played",
+    y = "Points Scored"
+  ) +
+  scale_x_discrete(
+    limits = factor(c(1:45)),
+    breaks = as.character(c(1:45))
+  ) +
+  theme_light() +
+  theme(
+    legend.position = "none",
+    text = element_text(color = wnba_tan),
+    axis.text = element_text(color = wnba_tan),
+    axis.line = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.text.x = element_text(size = 8, angle = 300, hjust = 0),
+    axis.title = element_text(size = 10),
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = wnba_black, color = wnba_black),
+    plot.background = element_rect(fill = wnba_black, color = wnba_black),
+    plot.title = element_text(size = 14),
+    plot.margin = unit(c(20, 40, 20, 40), "points"),
+    aspect.ratio = court_ratio
+  )
+
+ggplotly(points_plot, tooltip = c("athlete", "n_games", "n_points"))
+
+```
+
 ## Row {height=300px}
 
 ```{r tp24}
-stat24_dfs$total_points |>
+tp24 <- stat24_dfs$total_points |>
+  SharedData$new(key = ~athlete, group = "experience")
+
+tp24 |> 
   reactable(
     compact = TRUE,
     highlight = TRUE,
     filterable = TRUE,
     defaultPageSize = 20,
+    selection = "multiple",
+    onClick = "select",
+    rowStyle = list(cursor = "pointer"),
     defaultSorted = list(rank = "asc"),
     theme = stat_theme,
     columns = list(
@@ -376,12 +460,18 @@ stat24_dfs$total_points |>
 ```
 
 ```{r ta24}
-stat24_dfs$total_assists |>
+ta24 <- stat24_dfs$total_assists |>
+  SharedData$new(key = ~athlete, group = "experience")
+
+ta24 |> 
   reactable(
     compact = TRUE,
     highlight = TRUE,
     filterable = TRUE,
     defaultPageSize = 20,
+    selection = "multiple",
+    onClick = "select",
+    rowStyle = list(cursor = "pointer"),
     defaultSorted = list(rank = "asc"),
     theme = stat_theme,
     columns = list(
@@ -398,12 +488,18 @@ stat24_dfs$total_assists |>
 ```
 
 ```{r tr24}
-stat24_dfs$total_rebounds |>
+tr24 <-stat24_dfs$total_rebounds |>
+  SharedData$new(key = ~athlete, group = "experience")
+
+tr24 |> 
   reactable(
     compact = TRUE,
     highlight = TRUE,
     filterable = TRUE,
     defaultPageSize = 20,
+    selection = "multiple",
+    onClick = "select",
+    rowStyle = list(cursor = "pointer"),
     defaultSorted = list(rank = "asc"),
     theme = stat_theme,
     columns = list(
@@ -422,12 +518,18 @@ stat24_dfs$total_rebounds |>
 ## Row {height=300px}
 
 ```{r ts24}
-stat24_dfs$total_steals |>
+ts24 <- stat24_dfs$total_steals |>
+  SharedData$new(key = ~athlete, group = "experience")
+
+ts24 |> 
   reactable(
     compact = TRUE,
     highlight = TRUE,
     filterable = TRUE,
     defaultPageSize = 20,
+    selection = "multiple",
+    onClick = "select",
+    rowStyle = list(cursor = "pointer"),
     defaultSorted = list(rank = "asc"),
     theme = stat_theme,
     columns = list(
@@ -444,12 +546,18 @@ stat24_dfs$total_steals |>
 ```
 
 ```{r tb24}
-stat24_dfs$total_blocks |>
+tb24 <- stat24_dfs$total_blocks |>
+  SharedData$new(key = ~athlete, group = "experience")
+
+tb24 |> 
   reactable(
     compact = TRUE,
     highlight = TRUE,
     filterable = TRUE,
     defaultPageSize = 20,
+    selection = "multiple",
+    onClick = "select",
+    rowStyle = list(cursor = "pointer"),
     defaultSorted = list(rank = "asc"),
     theme = stat_theme,
     columns = list(
@@ -466,12 +574,18 @@ stat24_dfs$total_blocks |>
 ```
 
 ```{r gm24}
-stat24_dfs$goals_made |>
+gm24 <- stat24_dfs$goals_made |>
+  SharedData$new(key = ~athlete, group = "experience")
+
+gm24 |> 
   reactable(
     compact = TRUE,
     highlight = TRUE,
     filterable = TRUE,
     defaultPageSize = 20,
+    selection = "multiple",
+    onClick = "select",
+    rowStyle = list(cursor = "pointer"),
     defaultSorted = list(rank = "asc"),
     theme = stat_theme,
     columns = list(
@@ -490,12 +604,18 @@ stat24_dfs$goals_made |>
 ## Row {height=300px}
 
 ```{r tm24}
-stat24_dfs$threes_made |>
+tm24 <- stat24_dfs$threes_made |>
+  SharedData$new(key = ~athlete, group = "experience")
+
+tm24 |> 
   reactable(
     compact = TRUE,
     highlight = TRUE,
     filterable = TRUE,
     defaultPageSize = 20,
+    selection = "multiple",
+    onClick = "select",
+    rowStyle = list(cursor = "pointer"),
     defaultSorted = list(rank = "asc"),
     theme = stat_theme,
     columns = list(
@@ -512,12 +632,18 @@ stat24_dfs$threes_made |>
 ```
 
 ```{r tt24}
-stat24_dfs$total_turnovers |>
+tt24 <- stat24_dfs$total_turnovers |>
+  SharedData$new(key = ~athlete, group = "experience")
+
+tt24 |> 
   reactable(
     compact = TRUE,
     highlight = TRUE,
     filterable = TRUE,
     defaultPageSize = 20,
+    selection = "multiple",
+    onClick = "select",
+    rowStyle = list(cursor = "pointer"),
     defaultSorted = list(rank = "asc"),
     theme = stat_theme,
     columns = list(
@@ -534,12 +660,18 @@ stat24_dfs$total_turnovers |>
 ```
 
 ```{r tf24}
-stat24_dfs$total_fouls |>
+tf24 <- stat24_dfs$total_fouls |>
+  SharedData$new(key = ~athlete, group = "experience")
+
+tf24 |> 
   reactable(
     compact = TRUE,
     highlight = TRUE,
     filterable = TRUE,
     defaultPageSize = 20,
+    selection = "multiple",
+    onClick = "select",
+    rowStyle = list(cursor = "pointer"),
     defaultSorted = list(rank = "asc"),
     theme = stat_theme,
     columns = list(
@@ -550,31 +682,6 @@ stat24_dfs$total_fouls |>
         name = "FOULS",
         headerClass = "my-header3",
         style = list(fontWeight = "bold")
-      )
-    )
-  )
-```
-
-# Just Rookies
-
-## Row {height=800px}
-
-```{r rookietable}
-doubles24 |>
-  filter(seasons_played == "2024") |>
-  reactable(
-    compact = FALSE,
-    highlight = TRUE,
-    filterable = TRUE,
-    defaultPageSize = 30,
-    theme = doubles_theme,
-    columns = list(
-      ppg = colDef(
-        name = "per_game",
-        minWidth = 240,
-        cell = function(values) {
-          sparkline(rev(values), type = "bar", chartRangeMin = 0, chartRangeMax = max(dat$points, na.rm = TRUE), width = 240, barColor = "#ffffff", barWidth = 4, barSpacing = 1, zeroColor = "#999999", nullColor = "#000000")
-        }
       )
     )
   )
@@ -591,6 +698,9 @@ doubles |>
     highlight = TRUE,
     filterable = TRUE,
     defaultPageSize = 20,
+    selection = "multiple",
+    onClick = "select",
+    rowStyle = list(cursor = "pointer"),
     columns = list(
       pps = colDef(
         name = "per_season",
@@ -605,15 +715,57 @@ doubles |>
   )
 ```
 
+```{r experience}
+seasons_plot <- seasons |> 
+  ggplot(aes(x = n_seasons, y = n_games, group = athlete)) +
+  geom_point(size = 2, color = wnba_orange)  +
+  labs(
+    title = "Time on the Court",
+    subtitle = "each dot is a player - select players in the tables",
+    x = "Seasons Played",
+    y = "Games Played"
+  ) +
+  scale_x_discrete(
+    limits = factor(c(1:22)),
+    breaks = as.character(c(1:22))
+  ) +
+  theme_light() +
+  theme(
+    legend.position = "none",
+    text = element_text(color = wnba_tan),
+    axis.text = element_text(color = wnba_tan),
+    axis.line = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.text.x = element_text(size = 10),
+    axis.title = element_text(size = 10),
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = wnba_black, color = wnba_black),
+    plot.background = element_rect(fill = wnba_black, color = wnba_black),
+    plot.title = element_text(size = 14),
+    plot.margin = unit(c(20, 40, 20, 40), "points"),
+    aspect.ratio = court_ratio
+  )
+
+ggplotly(seasons_plot, tooltip = c("athlete", "n_seasons", "n_games"))
+
+```
+
 ## Row {height=300px}
 
 ```{r tp}
-stat_dfs$total_points |>
+tp <- stat_dfs$total_points |>
+  SharedData$new(key = ~athlete, group = "experience")
+
+tp |> 
   reactable(
     compact = TRUE,
     highlight = TRUE,
     filterable = TRUE,
     defaultPageSize = 20,
+    selection = "multiple",
+    onClick = "select",
+    rowStyle = list(cursor = "pointer"),
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
@@ -630,12 +782,18 @@ stat_dfs$total_points |>
 ```
 
 ```{r ta}
-stat_dfs$total_assists |>
+ta <- stat_dfs$total_assists |>
+  SharedData$new(key = ~athlete, group = "experience")
+
+ta |> 
   reactable(
     compact = TRUE,
     highlight = TRUE,
     filterable = TRUE,
     defaultPageSize = 20,
+    selection = "multiple",
+    onClick = "select",
+    rowStyle = list(cursor = "pointer"),
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
@@ -652,12 +810,18 @@ stat_dfs$total_assists |>
 ```
 
 ```{r tr}
-stat_dfs$total_rebounds |>
+tr <- stat_dfs$total_rebounds |>
+  SharedData$new(key = ~athlete, group = "experience")
+
+tr |> 
   reactable(
     compact = TRUE,
     highlight = TRUE,
     filterable = TRUE,
     defaultPageSize = 20,
+    selection = "multiple",
+    onClick = "select",
+    rowStyle = list(cursor = "pointer"),
    theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
@@ -676,12 +840,18 @@ stat_dfs$total_rebounds |>
 ## Row {height=300px}
 
 ```{r ts}
-stat_dfs$total_steals |>
+ts <-stat_dfs$total_steals |>
+  SharedData$new(key = ~athlete, group = "experience")
+
+ts |> 
   reactable(
     compact = TRUE,
     highlight = TRUE,
     filterable = TRUE,
     defaultPageSize = 20,
+    selection = "multiple",
+    onClick = "select",
+    rowStyle = list(cursor = "pointer"),
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
@@ -698,12 +868,18 @@ stat_dfs$total_steals |>
 ```
 
 ```{r tb}
-stat_dfs$total_blocks |>
+tb <- stat_dfs$total_blocks |>
+  SharedData$new(key = ~athlete, group = "experience")
+
+tb |> 
   reactable(
     compact = TRUE,
     highlight = TRUE,
     filterable = TRUE,
     defaultPageSize = 20,
+    selection = "multiple",
+    onClick = "select",
+    rowStyle = list(cursor = "pointer"),
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
@@ -720,12 +896,18 @@ stat_dfs$total_blocks |>
 ```
 
 ```{r gm}
-stat_dfs$goals_made |>
+gm <- stat_dfs$goals_made |>
+  SharedData$new(key = ~athlete, group = "experience")
+
+gm |> 
   reactable(
     compact = TRUE,
     highlight = TRUE,
     filterable = TRUE,
     defaultPageSize = 20,
+    selection = "multiple",
+    onClick = "select",
+    rowStyle = list(cursor = "pointer"),
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
@@ -744,12 +926,18 @@ stat_dfs$goals_made |>
 ## Row {height=300px}
 
 ```{r tm}
-stat_dfs$threes_made |>
+tm <- stat_dfs$threes_made |>
+  SharedData$new(key = ~athlete, group = "experience")
+
+tm |> 
   reactable(
     compact = TRUE,
     highlight = TRUE,
     filterable = TRUE,
     defaultPageSize = 20,
+    selection = "multiple",
+    onClick = "select",
+    rowStyle = list(cursor = "pointer"),
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
@@ -766,12 +954,18 @@ stat_dfs$threes_made |>
 ```
 
 ```{r tt}
-stat_dfs$total_turnovers |>
+tt <- stat_dfs$total_turnovers |>
+  SharedData$new(key = ~athlete, group = "experience")
+
+tt |> 
   reactable(
     compact = TRUE,
     highlight = TRUE,
     filterable = TRUE,
     defaultPageSize = 20,
+    selection = "multiple",
+    onClick = "select",
+    rowStyle = list(cursor = "pointer"),
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
@@ -788,12 +982,18 @@ stat_dfs$total_turnovers |>
 ```
 
 ```{r tf}
-stat_dfs$total_fouls |>
+tf <- stat_dfs$total_fouls |>
+  SharedData$new(key = ~athlete, group = "experience")
+
+tf |> 
   reactable(
     compact = TRUE,
     highlight = TRUE,
     filterable = TRUE,
     defaultPageSize = 20,
+    selection = "multiple",
+    onClick = "select",
+    rowStyle = list(cursor = "pointer"),
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
