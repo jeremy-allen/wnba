@@ -10,13 +10,14 @@ id = '260800d3-f515-4b30-8b91-6489d03088eb'
 dashboard_url = 'https://pub.current.posit.team/connect/#/apps/260800d3-f515-4b30-8b91-6489d03088eb'
 direct_url = 'https://pub.current.posit.team/content/260800d3-f515-4b30-8b91-6489d03088eb/'
 logs_url = 'https://pub.current.posit.team/connect/#/apps/260800d3-f515-4b30-8b91-6489d03088eb/logs'
-deployed_at = '2024-10-05T19:26:33-04:00'
-bundle_id = '524'
-bundle_url = 'https://pub.current.posit.team/__api__/v1/content/260800d3-f515-4b30-8b91-6489d03088eb/bundles/524/download'
+deployed_at = '2024-10-06T14:25:49-04:00'
+bundle_id = '527'
+bundle_url = 'https://pub.current.posit.team/__api__/v1/content/260800d3-f515-4b30-8b91-6489d03088eb/bundles/527/download'
 files = [
   'dashboard.html',
   'dashboard.qmd',
   'images/logo.png',
+  'images/wnba-logo.png',
   'renv.lock',
   'styles.scss'
 ]
