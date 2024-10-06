@@ -8,6 +8,7 @@ $navbar-fg: #FFFFFF !default;
 $bs-nav-link-hover-color: #FFFFFF !default;
 $bs-nav-link-color: #FFFFFF !default;
 $bs-nav-link-active-color: #f78a37 !default;
+$bs-navbar-nav-link-padding-x: 1rem !default;
 
 $bslib-spacer: .5rem;
 $bs-card-spacer-y: .5rem;
@@ -22,9 +23,21 @@ $bs-card-spacer-y: .5rem;
   background-size: 20px;
 }
 
+.nav-item {
+  min-width: 60px !important;
+}
+
+.nav-link-text {
+  padding-left: 8px !important;
+}
+
 .nav-link:hover, .nav-link:focus, .nav-link:active,
 .navbar .navbar-nav .active {
   color: #f78a37 !important;
+}
+
+.bslib-card {
+  min-width: 300px !important;
 }
 
 .rt-td-inner {

@@ -456,8 +456,7 @@ tp24 |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      # position = colDef(maxWidth = md),
-      seasons = colDef(name = "season", maxWidth = md),
+      seasons = colDef(show = FALSE),
       total_points = colDef(
         name = "POINTS",
         headerClass = "my-header3",
@@ -484,8 +483,7 @@ ta24 |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      # position = colDef(maxWidth = md),
-      seasons = colDef(name = "season", maxWidth = md),
+      seasons = colDef(show = FALSE),
       total_assists = colDef(
         name = "ASSISTS",
         headerClass = "my-header3",
@@ -512,8 +510,7 @@ tr24 |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      # position = colDef(maxWidth = md),
-      seasons = colDef(name = "season", maxWidth = md),
+      seasons = colDef(show = FALSE),
       total_rebounds = colDef(
         name = "REBOUNDS",
         headerClass = "my-header3",
@@ -542,8 +539,7 @@ ts24 |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      # position = colDef(maxWidth = md),
-      seasons = colDef(name = "season", maxWidth = md),
+      seasons = colDef(show = FALSE),
       total_steals = colDef(
         name = "STEALS",
         headerClass = "my-header3",
@@ -570,8 +566,7 @@ tb24 |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      # position = colDef(maxWidth = md),
-      seasons = colDef(name = "season", maxWidth = md),
+      seasons = colDef(show = FALSE),
       total_blocks = colDef(
         name = "BLOCKS",
         headerClass = "my-header3",
@@ -598,8 +593,7 @@ gm24 |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      # position = colDef(maxWidth = md),
-      seasons = colDef(name = "season", maxWidth = md),
+      seasons = colDef(show = FALSE),
       goals_made = colDef(
         name = "GOALS",
         headerClass = "my-header3",
@@ -628,8 +622,7 @@ tm24 |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      # position = colDef(maxWidth = md),
-      seasons = colDef(name = "season", maxWidth = md),
+      seasons = colDef(show = FALSE),
       threes_made = colDef(
         name = "THREES",
         headerClass = "my-header3",
@@ -656,8 +649,7 @@ tt24 |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      # position = colDef(maxWidth = md),
-      seasons = colDef(name = "season", maxWidth = md),
+      seasons = colDef(show = FALSE),
       total_turnovers = colDef(
         name = "T-OVERS",
         headerClass = "my-header3",
@@ -684,8 +676,7 @@ tf24 |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      # position = colDef(maxWidth = md),
-      seasons = colDef(name = "season", maxWidth = md),
+      seasons = colDef(show = FALSE),
       total_fouls = colDef(
         name = "FOULS",
         headerClass = "my-header3",
