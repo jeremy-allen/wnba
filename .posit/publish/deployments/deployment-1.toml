@@ -10,9 +10,9 @@ id = '260800d3-f515-4b30-8b91-6489d03088eb'
 dashboard_url = 'https://pub.current.posit.team/connect/#/apps/260800d3-f515-4b30-8b91-6489d03088eb'
 direct_url = 'https://pub.current.posit.team/content/260800d3-f515-4b30-8b91-6489d03088eb/'
 logs_url = 'https://pub.current.posit.team/connect/#/apps/260800d3-f515-4b30-8b91-6489d03088eb/logs'
-deployed_at = '2024-10-06T16:49:33-04:00'
-bundle_id = '529'
-bundle_url = 'https://pub.current.posit.team/__api__/v1/content/260800d3-f515-4b30-8b91-6489d03088eb/bundles/529/download'
+deployed_at = '2024-10-06T17:22:32-04:00'
+bundle_id = '530'
+bundle_url = 'https://pub.current.posit.team/__api__/v1/content/260800d3-f515-4b30-8b91-6489d03088eb/bundles/530/download'
 files = [
   'dashboard.html',
   'dashboard.qmd',
