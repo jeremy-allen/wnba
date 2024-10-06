@@ -28,7 +28,8 @@ library(crosstalk)
 
 
 ```{r data}
-dat <- load_wnba_player_box(seasons = c(2004:2024))
+#dat <- load_wnba_player_box(seasons = c(2004:2024))
+dat <- readRDS("dat.rds")
 
 athletes <- dat |>
   select(athlete_id, athlete_display_name)
@@ -778,8 +779,7 @@ tp |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      # position = colDef(maxWidth = md),
-      total_seasons = colDef(maxWidth = sm),
+      total_seasons = colDef(name = "total seasons", maxWidth = md),
       seasons = colDef(maxWidth = lg),
       total_points = colDef(
         name = "POINTS",
@@ -806,8 +806,7 @@ ta |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      #position = colDef(maxWidth = md),
-      total_seasons = colDef(maxWidth = sm),
+      total_seasons = colDef(name = "total seasons", maxWidth = md),
       seasons = colDef(maxWidth = lg),
       total_assists = colDef(
         name = "ASSISTS",
@@ -834,8 +833,7 @@ tr |>
    theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      #position = colDef(maxWidth = md),
-      total_seasons = colDef(maxWidth = sm),
+      total_seasons = colDef(name = "total seasons", maxWidth = md),
       seasons = colDef(maxWidth = lg),
       total_rebounds = colDef(
         name = "REBOUNDS",
@@ -864,8 +862,7 @@ ts |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      #position = colDef(maxWidth = md),
-      total_seasons = colDef(maxWidth = sm),
+      total_seasons = colDef(name = "total seasons", maxWidth = md),
       seasons = colDef(maxWidth = lg),
       total_steals = colDef(
         name = "STEALS",
@@ -892,8 +889,7 @@ tb |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      #position = colDef(maxWidth = md),
-      total_seasons = colDef(maxWidth = sm),
+      total_seasons = colDef(name = "total seasons", maxWidth = md),
       seasons = colDef(maxWidth = lg),
       total_blocks = colDef(
         name = "BLOCKS",
@@ -920,8 +916,7 @@ gm |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      #position = colDef(maxWidth = md),
-      total_seasons = colDef(maxWidth = sm),
+      total_seasons = colDef(name = "total seasons", maxWidth = md),
       seasons = colDef(maxWidth = lg),
       goals_made = colDef(
         name = "GOALS",
@@ -950,8 +945,7 @@ tm |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      #position = colDef(maxWidth = md),
-      total_seasons = colDef(maxWidth = sm),
+      total_seasons = colDef(name = "total seasons", maxWidth = md),
       seasons = colDef(maxWidth = lg),
       threes_made = colDef(
         name = "THREES",
@@ -978,8 +972,7 @@ tt |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      #position = colDef(maxWidth = md),
-      total_seasons = colDef(maxWidth = sm),
+      total_seasons = colDef(name = "total seasons", maxWidth = md),
       seasons = colDef(maxWidth = lg),
       total_turnovers = colDef(
         name = "T-OVERS",
@@ -1006,8 +999,7 @@ tf |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      #position = colDef(maxWidth = md),
-      total_seasons = colDef(maxWidth = sm),
+      total_seasons = colDef(name = "total seasons", maxWidth = md),
       seasons = colDef(maxWidth = lg),
       total_fouls = colDef(
         name = "FOULS",
