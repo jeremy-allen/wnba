@@ -14,7 +14,18 @@ $bslib-spacer: .5rem;
 $bs-card-spacer-y: .5rem;
 $bs-card-spacer-y: .5rem;
 
+$card-spacer-x: 2px;
+$card-spacer-y: 10px;
+
 /*-- scss:rules --*/
+
+@media (max-width: 1100px) {
+  .bslib-grid {
+      grid-template-rows: minmax(1em, max-content) !important;
+      grid-template-columns: 1fr !important;
+      height: var(--bslib-grid-height-mobile);
+  }
+}
 
 .quarto-dashboard .navbar .navbar-nav .active {
   background-image: url("images/wnba-logo.png");
@@ -37,7 +48,7 @@ $bs-card-spacer-y: .5rem;
 }
 
 .bslib-card {
-  min-width: 300px !important;
+  min-width: 250px !important;
 }
 
 .rt-td-inner {
@@ -46,6 +57,10 @@ $bs-card-spacer-y: .5rem;
 
 .rt-th-inner {
   padding: 6px;
+}
+
+.rt-table {
+  padding: 0;
 }
 
 .reactable {

@@ -28,8 +28,7 @@ library(crosstalk)
 
 
 ```{r data}
-#dat <- load_wnba_player_box(seasons = c(2004:2024))
-dat <- readRDS("dat.rds")
+dat <- load_wnba_player_box(seasons = c(2004:2024))
 
 athletes <- dat |>
   select(athlete_id, athlete_display_name)
@@ -521,8 +520,6 @@ tr24 |>
   )
 ```
 
-## Row {height=300px}
-
 ```{r ts24}
 ts24 <- stat24_dfs$total_steals |>
   SharedData$new(key = ~athlete, group = "experience")
@@ -549,6 +546,8 @@ ts24 |>
     )
   )
 ```
+
+## Row {height=300px}
 
 ```{r tb24}
 tb24 <- stat24_dfs$total_blocks |>
@@ -604,8 +603,6 @@ gm24 |>
   )
 ```
 
-## Row {height=300px}
-
 ```{r tm24}
 tm24 <- stat24_dfs$threes_made |>
   SharedData$new(key = ~athlete, group = "experience")
@@ -653,33 +650,6 @@ tt24 |>
       seasons = colDef(show = FALSE),
       total_turnovers = colDef(
         name = "T-OVERS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
-```
-
-```{r tf24}
-tf24 <- stat24_dfs$total_fouls |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-tf24 |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = TRUE,
-    defaultPageSize = 20,
-    selection = "multiple",
-    onClick = "select",
-    rowStyle = list(cursor = "pointer"),
-    defaultSorted = list(rank = "asc"),
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      seasons = colDef(show = FALSE),
-      total_fouls = colDef(
-        name = "FOULS",
         headerClass = "my-header3",
         style = list(fontWeight = "bold")
       )
@@ -983,29 +953,3 @@ tt |>
   )
 ```
 
-```{r tf}
-tf <- stat_dfs$total_fouls |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-tf |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = TRUE,
-    defaultPageSize = 20,
-    selection = "multiple",
-    onClick = "select",
-    rowStyle = list(cursor = "pointer"),
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      total_seasons = colDef(name = "total seasons", maxWidth = md),
-      seasons = colDef(maxWidth = lg),
-      total_fouls = colDef(
-        name = "FOULS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
-```
