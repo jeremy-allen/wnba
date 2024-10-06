@@ -182,18 +182,18 @@ player_doubles <- function(data, season_type = 2, my_season = NULL) {
 stat <- function(data, col, ...) {
   if (n_distinct(data$seasons) > 1) {
     data |>
-      select(athlete, position, {{ col }}, total_seasons, seasons) |>
+      select(athlete, {{ col }}, total_seasons, seasons) |>
       arrange(desc({{ col }})) |>
       slice(1:150) |>
       mutate(rank = row_number()) |>
-      select(rank, athlete, position, {{ col }}, total_seasons, seasons)
+      select(rank, athlete, {{ col }}, total_seasons, seasons)
   } else if (n_distinct(data$seasons) == 1) {
     data |>
-      select(athlete, position, {{ col }}, seasons) |>
+      select(athlete, {{ col }}, seasons) |>
       arrange(desc({{ col }})) |>
       slice(1:150) |>
       mutate(rank = row_number()) |>
-      select(rank, athlete, position, {{ col }}, seasons)
+      select(rank, athlete, {{ col }}, seasons)
   }
 }
 ```
@@ -226,10 +226,10 @@ main_stats <- pdat |>
   select(
     athlete,
     total_points,
-    total_assists,
-    total_rebounds,
-    total_steals,
-    total_blocks,
+    # total_assists,
+    # total_rebounds,
+    # total_steals,
+    # total_blocks,
     position,
     latest_team
   )
@@ -241,8 +241,9 @@ doubles <- doubles |>
     player_seasons,
     by = join_by(athlete)
   ) |>
+  mutate(rookie = if_else(seasons == year(now()), "rookie", ""))  |> 
   arrange(desc(total_points)) |>
-  select(athlete, triple_double, double_double, total_points, pps, everything())
+  select(athlete, rookie, triple_double, double_double, total_points, pps, everything())
 
 doubles <- SharedData$new(doubles, group = "experience", key = ~athlete)
 
@@ -257,10 +258,10 @@ main_stats24 <- pdat24 |>
     athlete,
     total_points,
     ppg,
-    total_assists,
-    total_rebounds,
-    total_steals,
-    total_blocks,
+    # total_assists,
+    # total_rebounds,
+    # total_steals,
+    # total_blocks,
     position,
     latest_team
   )
@@ -381,13 +382,21 @@ doubles24 |>
     rowStyle = list(cursor = "pointer"),
     theme = doubles_theme,
     columns = list(
+      athlete = colDef(name = "Athlete", maxWidth = md),
+      rookie = colDef(name = "Rookie", maxWidth = md),
+      double_double = colDef(name = "Double Dbl", maxWidth = md),
+      triple_double = colDef(name = "Triple Dbl", maxWidth = md),
+      total_points = colDef(name = "Total Points", maxWidth = md),
       ppg = colDef(
-        name = "per_game",
+        name = "Per Game",
         minWidth = 240,
         cell = function(values) {
           sparkline(rev(values), type = "bar", chartRangeMin = 0, chartRangeMax = max(dat$points, na.rm = TRUE), width = 240, barColor = "#ffffff", barWidth = 4, barSpacing = 1, zeroColor = "#999999", nullColor = "#000000")
         }
-      )
+      ),
+      position = colDef(name = "Position"),
+      latest_team = colDef(name = "Team"),
+      seasons_played = colDef(name = "Seasons Played")
     )
   )
 ```
@@ -447,8 +456,8 @@ tp24 |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      position = colDef(maxWidth = md),
-      seasons = colDef(maxWidth = md),
+      # position = colDef(maxWidth = md),
+      seasons = colDef(name = "season", maxWidth = md),
       total_points = colDef(
         name = "POINTS",
         headerClass = "my-header3",
@@ -475,8 +484,8 @@ ta24 |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      position = colDef(maxWidth = md),
-      seasons = colDef(maxWidth = md),
+      # position = colDef(maxWidth = md),
+      seasons = colDef(name = "season", maxWidth = md),
       total_assists = colDef(
         name = "ASSISTS",
         headerClass = "my-header3",
@@ -503,8 +512,8 @@ tr24 |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      position = colDef(maxWidth = md),
-      seasons = colDef(maxWidth = md),
+      # position = colDef(maxWidth = md),
+      seasons = colDef(name = "season", maxWidth = md),
       total_rebounds = colDef(
         name = "REBOUNDS",
         headerClass = "my-header3",
@@ -533,8 +542,8 @@ ts24 |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      position = colDef(maxWidth = md),
-      seasons = colDef(maxWidth = md),
+      # position = colDef(maxWidth = md),
+      seasons = colDef(name = "season", maxWidth = md),
       total_steals = colDef(
         name = "STEALS",
         headerClass = "my-header3",
@@ -561,8 +570,8 @@ tb24 |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      position = colDef(maxWidth = md),
-      seasons = colDef(maxWidth = md),
+      # position = colDef(maxWidth = md),
+      seasons = colDef(name = "season", maxWidth = md),
       total_blocks = colDef(
         name = "BLOCKS",
         headerClass = "my-header3",
@@ -589,8 +598,8 @@ gm24 |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      position = colDef(maxWidth = md),
-      seasons = colDef(maxWidth = md),
+      # position = colDef(maxWidth = md),
+      seasons = colDef(name = "season", maxWidth = md),
       goals_made = colDef(
         name = "GOALS",
         headerClass = "my-header3",
@@ -619,8 +628,8 @@ tm24 |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      position = colDef(maxWidth = md),
-      seasons = colDef(maxWidth = md),
+      # position = colDef(maxWidth = md),
+      seasons = colDef(name = "season", maxWidth = md),
       threes_made = colDef(
         name = "THREES",
         headerClass = "my-header3",
@@ -647,8 +656,8 @@ tt24 |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      position = colDef(maxWidth = md),
-      seasons = colDef(maxWidth = md),
+      # position = colDef(maxWidth = md),
+      seasons = colDef(name = "season", maxWidth = md),
       total_turnovers = colDef(
         name = "T-OVERS",
         headerClass = "my-header3",
@@ -675,8 +684,8 @@ tf24 |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      position = colDef(maxWidth = md),
-      seasons = colDef(maxWidth = md),
+      # position = colDef(maxWidth = md),
+      seasons = colDef(name = "season", maxWidth = md),
       total_fouls = colDef(
         name = "FOULS",
         headerClass = "my-header3",
@@ -701,14 +710,24 @@ doubles |>
     onClick = "select",
     rowStyle = list(cursor = "pointer"),
     columns = list(
+      athlete = colDef(name = "Athlete", maxWidth = md),
+      rookie = colDef(name = "Rookie", maxWidth = md),
+      double_double = colDef(name = "Double Dbl", maxWidth = md),
+      triple_double = colDef(name = "Triple Dbl", maxWidth = md),
+      total_points = colDef(name = "Total Points", maxWidth = md),
       pps = colDef(
-        name = "per_season",
+        name = "Per Season",
         minWidth = 153,
         maxWidth = 155,
         cell = function(values) {
           sparkline(values, type = "bar", width = 153, chartRangeMin = 0, barColor = "#ffffff", barWidth = 4, barSpacing = 1, zeroColor = "#999999", nullColor = "#000000")
         }
-      )
+      ),
+      position = colDef(name = "Position"),
+      latest_team = colDef(name = "Team"),
+      total_games = colDef(name = "Total Games"),
+      total_seasons = colDef(name = "Total Seasons"),
+      seasons = colDef(name = "Seasons")
     ),
     theme = doubles_theme
   )
@@ -768,7 +787,7 @@ tp |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      position = colDef(maxWidth = md),
+      # position = colDef(maxWidth = md),
       total_seasons = colDef(maxWidth = sm),
       seasons = colDef(maxWidth = lg),
       total_points = colDef(
@@ -796,7 +815,7 @@ ta |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      position = colDef(maxWidth = md),
+      #position = colDef(maxWidth = md),
       total_seasons = colDef(maxWidth = sm),
       seasons = colDef(maxWidth = lg),
       total_assists = colDef(
@@ -824,7 +843,7 @@ tr |>
    theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      position = colDef(maxWidth = md),
+      #position = colDef(maxWidth = md),
       total_seasons = colDef(maxWidth = sm),
       seasons = colDef(maxWidth = lg),
       total_rebounds = colDef(
@@ -854,7 +873,7 @@ ts |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      position = colDef(maxWidth = md),
+      #position = colDef(maxWidth = md),
       total_seasons = colDef(maxWidth = sm),
       seasons = colDef(maxWidth = lg),
       total_steals = colDef(
@@ -882,7 +901,7 @@ tb |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      position = colDef(maxWidth = md),
+      #position = colDef(maxWidth = md),
       total_seasons = colDef(maxWidth = sm),
       seasons = colDef(maxWidth = lg),
       total_blocks = colDef(
@@ -910,7 +929,7 @@ gm |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      position = colDef(maxWidth = md),
+      #position = colDef(maxWidth = md),
       total_seasons = colDef(maxWidth = sm),
       seasons = colDef(maxWidth = lg),
       goals_made = colDef(
@@ -940,7 +959,7 @@ tm |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      position = colDef(maxWidth = md),
+      #position = colDef(maxWidth = md),
       total_seasons = colDef(maxWidth = sm),
       seasons = colDef(maxWidth = lg),
       threes_made = colDef(
@@ -968,7 +987,7 @@ tt |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      position = colDef(maxWidth = md),
+      #position = colDef(maxWidth = md),
       total_seasons = colDef(maxWidth = sm),
       seasons = colDef(maxWidth = lg),
       total_turnovers = colDef(
@@ -996,7 +1015,7 @@ tf |>
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
-      position = colDef(maxWidth = md),
+      #position = colDef(maxWidth = md),
       total_seasons = colDef(maxWidth = sm),
       seasons = colDef(maxWidth = lg),
       total_fouls = colDef(
