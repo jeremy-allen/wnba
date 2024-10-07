@@ -11,7 +11,8 @@ files = [
   '/styles.scss',
   '/dashboard_files',
   '/dashboard.html',
-  '/images'
+  '/images',
+  '/config.yml'
 ]
 title = 'Meet the WNBA'
 

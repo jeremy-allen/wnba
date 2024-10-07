@@ -28,7 +28,18 @@ library(crosstalk)
 
 
 ```{r data}
-dat <- load_wnba_player_box(seasons = c(2004:2024))
+# Load the configuration
+config <- config::get()
+
+# Function to get data based on the configuration
+
+if (config$data_source == "local") {
+    dat <- readRDS("dat.rds")
+}
+  
+if (config$data_source == "wehoop") {
+    dat <- load_wnba_player_box(seasons = c(2004:2024))
+}
 
 athletes <- dat |>
   select(athlete_id, athlete_display_name)
