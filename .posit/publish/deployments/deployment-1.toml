@@ -10,10 +10,11 @@ id = '260800d3-f515-4b30-8b91-6489d03088eb'
 dashboard_url = 'https://pub.current.posit.team/connect/#/apps/260800d3-f515-4b30-8b91-6489d03088eb'
 direct_url = 'https://pub.current.posit.team/content/260800d3-f515-4b30-8b91-6489d03088eb/'
 logs_url = 'https://pub.current.posit.team/connect/#/apps/260800d3-f515-4b30-8b91-6489d03088eb/logs'
-deployed_at = '2024-10-06T17:22:32-04:00'
-bundle_id = '530'
-bundle_url = 'https://pub.current.posit.team/__api__/v1/content/260800d3-f515-4b30-8b91-6489d03088eb/bundles/530/download'
+deployed_at = '2024-10-06T20:02:42-04:00'
+bundle_id = '536'
+bundle_url = 'https://pub.current.posit.team/__api__/v1/content/260800d3-f515-4b30-8b91-6489d03088eb/bundles/536/download'
 files = [
+  'config.yml',
   'dashboard.html',
   'dashboard.qmd',
   'images/logo.png',
@@ -33,7 +34,8 @@ files = [
   '/styles.scss',
   '/dashboard_files',
   '/dashboard.html',
-  '/images'
+  '/images',
+  '/config.yml'
 ]
 title = 'Meet the WNBA'
 
@@ -162,6 +164,14 @@ source = 'Repository'
 repository = 'PPM'
 requirements = ['R', 'grDevices', 'graphics', 'methods', 'stats']
 hash = 'd954cb1c57e8d8b756165d7ba18aa55a'
+
+[renv.packages.config]
+package = 'config'
+version = '0.3.2'
+source = 'Repository'
+repository = 'PPM'
+requirements = ['yaml']
+hash = '8b7222e9d9eb5178eea545c0c4d33fc2'
 
 [renv.packages.cpp11]
 package = 'cpp11'
