@@ -261,14 +261,14 @@ stat <- function(data, col, ...) {
   if (n_distinct(data$seasons) > 1) {
     data |>
       select(athlete, {{ col }}, total_seasons, seasons) |>
-      arrange(desc({{ col }})) |>
+      arrange(desc(.data[[col]])) |>
       slice(1:150) |>
       mutate(rank = row_number()) |>
       select(rank, athlete, {{ col }}, total_seasons, seasons)
   } else if (n_distinct(data$seasons) == 1) {
     data |>
       select(athlete, {{ col }}, seasons) |>
-      arrange(desc({{ col }})) |>
+      arrange(desc(.data[[col]])) |>
       slice(1:150) |>
       mutate(rank = row_number()) |>
       select(rank, athlete, {{ col }}, seasons)
