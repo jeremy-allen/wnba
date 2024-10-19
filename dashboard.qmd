@@ -28,40 +28,106 @@ library(crosstalk)
 
 
 ```{r data}
+
+seasons <- c(2004:year(now()))
+
 # Load the configuration
 config <- config::get()
 
-# Function to get data based on the configuration
+# get data based on the configuration
 
 if (config$data_source == "local") {
     dat <- readRDS("dat.rds")
+    sched <- readRDS("sched.rds")
 }
   
 if (config$data_source == "wehoop") {
-    dat <- load_wnba_player_box(seasons = c(2004:2024))
+    dat <- load_wnba_player_box(seasons = seasons)
+    sched <- wehoop::load_wnba_schedule(seasons = seasons)
 }
+
+sched_games <- sched |> 
+  select(game_id, game_date, season_type, type_id, type_abbreviation,
+  home_display_name, home_score, away_display_name, away_score, attendance) |> 
+    mutate(attendance = as.integer(attendance))
+
+# game types
+game_types <- sched_games |> 
+  select(game_id, type_id, type_abbreviation)
+
+# reguarl season games excluding CC and Allstar games
+rs_game_ids <- sched_games |> 
+  select(game_id, type_id) |> 
+  filter(type_id == 1)
+
+# postseason games
+ps_games_ids <- sched_games |> 
+  select(game_id, type_id) |> 
+  filter(type_id %in% c(14, 16, 17))
 
 athletes <- dat |>
   select(athlete_id, athlete_display_name)
 
 dat <- dat |>
-  filter(team_id < 90)
+  filter(team_id < 90) |> 
+  left_join(game_types, by = "game_id")
+
+games <- dat |>
+  filter(season == 2024) |>
+  summarise(
+    team_1 = first(team_display_name),
+    team_2 = first(opponent_team_display_name),
+    .by = c(game_id, game_date)
+  ) |> 
+    arrange(desc(game_date))
+
+# max number of games this year for any team
+num_games <-dat |>
+  filter(
+    season == 2024,
+    type_id == 1
+    ) |>
+  select(team_display_name, game_id, game_date) |>
+  unique() |> 
+  arrange(team_display_name, desc(game_date)) |> 
+  count(team_display_name, sort = TRUE) |> 
+  head(1) |> 
+  pull(n)
+
 ```
 
 ```{r funcs1}
-player_stats <- function(data, season_type = 2, my_season = NULL) {
-  dat <- data |>
+post_season_ids <- c(14, 16, 17)
+
+player_stats <- function(
+  data, season_part = c("regular", "post"), my_season = NULL
+  ) {
+  
+  # stop if no type_id column
+  stopifnot("type_id" %in% names(data))
+
+  season_part <- match.arg(season_part)
+
+  my_type_id <- as.integer(1)
+
+  if (season_part == "post") {
+    my_type_id <- post_season_ids
+  }
+
+  result <- data |> 
     filter(
-      season_type == season_type,
-      !is.na(athlete_display_name)
+      !is.na(athlete_display_name),
+      type_id %in% my_type_id
       )
 
   if (!is.null(my_season)) {
-    dat <- dat %>%
+    result <- result |> 
       filter(season == my_season)
   }
+  
+  types <- result$type_id |> unique()
 
-  result <- dat |>
+  result <- result |>
     replace_na(list(points = 0)) |>
     summarise(
       position = paste(
@@ -112,9 +178,10 @@ player_stats <- function(data, season_type = 2, my_season = NULL) {
 }
 
 # player points per season over entire career
-player_pps <- function(data, season_type = 2) {
+player_pps <- function(data, my_type_id = 1) {
+
   data |>
-    filter(season_type == season_type) |>
+    filter(type_id == my_type_id) |>
     replace_na(list(points = 0)) |>
     summarise(
       points = as.integer(sum(points, na.rm = TRUE)),
@@ -125,9 +192,9 @@ player_pps <- function(data, season_type = 2) {
 ```
 
 ```{r funcs2}
-player_doubles <- function(data, season_type = 2, my_season = NULL) {
+player_doubles <- function(data, my_type_id = 1, my_season = NULL) {
   dat <- data |>
-    filter(season_type == season_type)
+    filter(type_id == my_type_id)
 
   if (!is.null(my_season)) {
     dat <- dat %>%
@@ -210,16 +277,16 @@ stat <- function(data, col, ...) {
 ```
 
 ```{r dataprep}
+
 pps <- dat |>
-  player_pps(dat) |>
+  player_pps() |>
   arrange(athlete_display_name, season) |>
   summarise(
     pps = list(points),
     .by = athlete_display_name
   )
 
-pdat <- dat |>
-  player_stats()
+pdat <- player_stats(data = dat, season_part = "regular")
 
 player_seasons <- pdat |>
   select(athlete, total_games, total_seasons, seasons) |> 
@@ -261,7 +328,7 @@ doubles <- SharedData$new(doubles, group = "experience", key = ~athlete)
 ```
 
 ```{r data24prep}
-pdat24 <- player_stats(data = dat, my_season = 2024)
+pdat24 <- player_stats(data = dat, season_part = "regular", my_season = 2024)
 doubles24 <- player_doubles(data = dat, my_season = 2024)
 
 main_stats24 <- pdat24 |>
@@ -304,13 +371,16 @@ seasons <- dat |>
   SharedData$new(group = "experience", key = ~athlete)
 
 points <- dat |> 
-  filter(season == as.integer(year(now()))) |> 
+  filter(
+    season == as.integer(year(now())),
+    type_id == 1
+    ) |>
   summarise(
     n_games = n_distinct(game_id, na.rm = TRUE),
     n_points = sum(points, na.rm = TRUE),
     .by = c(athlete_display_name)
   ) |> 
-  arrange(n_games) |> 
+  arrange(desc(n_games)) |> 
   rename(athlete = athlete_display_name) |> 
   drop_na(athlete) |> 
   SharedData$new(group = "experience", key = ~athlete)
@@ -328,14 +398,16 @@ stat_names <- c(
 
 stat_dfs <- stat_names %>%
   set_names() %>%
-  map(~ stat(pdat, col = !!sym(.x)))
+  map(~ stat(pdat, col = {{ .x }}))
 
 
 # dfs for 2024 stats
 
 stat24_dfs <- stat_names %>%
   set_names() %>%
-  map(~ stat(pdat24, col = !!sym(.x)))
+  map(~ stat(pdat24, col = {{ .x }}))
+
+# https://rlang.r-lib.org/reference/topic-inject.html#embracing-with-
 ```
 
 ```{r sizes}
@@ -400,7 +472,7 @@ doubles24 |>
       total_points = colDef(name = "Total Points", maxWidth = md),
       ppg = colDef(
         name = "Per Game",
-        minWidth = 240,
+        minWidth = 300,
         cell = function(values) {
           sparkline(rev(values), type = "bar", chartRangeMin = 0, chartRangeMax = max(dat$points, na.rm = TRUE), width = 240, barColor = "#ffffff", barWidth = 4, barSpacing = 1, zeroColor = "#999999", nullColor = "#000000")
         }
@@ -415,16 +487,19 @@ doubles24 |>
 ```{r points}
 points_plot <- points |> 
   ggplot(aes(x = n_games, y = n_points, group = athlete)) +
-  geom_point(size = 2, color = wnba_orange)  +
+  geom_point(
+    size = 2,
+    color = wnba_orange
+  )  +
   labs(
-    title = "Points this Season",
+    title = "Points this Regular Season",
     subtitle = "each dot is a player - select players in the tables",
-    x = "Games Played",
+    x = "Regular Season Games Played",
     y = "Points Scored"
   ) +
   scale_x_discrete(
-    limits = factor(c(1:45)),
-    breaks = as.character(c(1:45))
+    limits = factor(c(1:(num_games + 1))),
+    breaks = as.character(c(1:(num_games)))
   ) +
   theme_light() +
   theme(
@@ -714,7 +789,7 @@ seasons_plot <- seasons |>
     title = "Time on the Court",
     subtitle = "each dot is a player - select players in the tables",
     x = "Seasons Played",
-    y = "Games Played"
+    y = "Regular Season Games Played"
   ) +
   scale_x_discrete(
     limits = factor(c(1:22)),
