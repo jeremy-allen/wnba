@@ -721,6 +721,43 @@ ggplotly(
 
 ```
 
+```{r efficiency}
+#| title: Efficiency
+efficiency_plot <- efficiency |>
+  ggplot(aes(x = fga_per_game, y = ts_pct, group = athlete)) +
+  geom_point(
+    size = 2,
+    color = wnba_orange
+  ) +
+  labs(
+    title = "Shooting Efficiency vs Volume",
+    subtitle = "each dot is a player with 50+ field goal attempts - select players in the tables",
+    x = "Field Goal Attempts per Game",
+    y = "True Shooting %"
+  ) +
+  theme_light() +
+  theme(
+    legend.position = "none",
+    text = element_text(color = wnba_tan),
+    axis.text = element_text(color = wnba_tan),
+    axis.line = element_blank(),
+    axis.text.x = element_text(size = 8),
+    axis.title = element_text(size = 10),
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = wnba_black, color = wnba_black),
+    plot.background = element_rect(fill = wnba_black, color = wnba_black),
+    plot.title = element_text(size = 14),
+    plot.margin = unit(c(20, 40, 20, 40), "points")
+  )
+
+ggplotly(
+  efficiency_plot,
+  height = 330,
+  tooltip = c("athlete", "fga_per_game", "ts_pct")
+)
+
+```
+
 ```{r points}
 #| title: Points this Season
 points_plot <- points |>
@@ -761,43 +798,6 @@ ggplotly(
   points_plot,
   height = 330,
   tooltip = c("athlete", "n_games", "n_points")
-)
-
-```
-
-```{r efficiency}
-#| title: Efficiency
-efficiency_plot <- efficiency |>
-  ggplot(aes(x = fga_per_game, y = ts_pct, group = athlete)) +
-  geom_point(
-    size = 2,
-    color = wnba_orange
-  ) +
-  labs(
-    title = "Shooting Efficiency vs Volume",
-    subtitle = "each dot is a player with 50+ field goal attempts - select players in the tables",
-    x = "Field Goal Attempts per Game",
-    y = "True Shooting %"
-  ) +
-  theme_light() +
-  theme(
-    legend.position = "none",
-    text = element_text(color = wnba_tan),
-    axis.text = element_text(color = wnba_tan),
-    axis.line = element_blank(),
-    axis.text.x = element_text(size = 8),
-    axis.title = element_text(size = 10),
-    panel.grid = element_blank(),
-    panel.background = element_rect(fill = wnba_black, color = wnba_black),
-    plot.background = element_rect(fill = wnba_black, color = wnba_black),
-    plot.title = element_text(size = 14),
-    plot.margin = unit(c(20, 40, 20, 40), "points")
-  )
-
-ggplotly(
-  efficiency_plot,
-  height = 330,
-  tooltip = c("athlete", "fga_per_game", "ts_pct")
 )
 
 ```
