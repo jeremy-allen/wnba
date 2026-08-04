@@ -373,6 +373,7 @@ compare_raw <- dat |>
     total_points = sum(points, na.rm = TRUE),
     ppg = total_points / games,
     apg = sum(assists, na.rm = TRUE) / games,
+    rpg = sum(rebounds, na.rm = TRUE) / games,
     spg = sum(steals, na.rm = TRUE) / games,
     bpg = sum(blocks, na.rm = TRUE) / games,
     topg = sum(turnovers, na.rm = TRUE) / games,
@@ -409,6 +410,7 @@ compare_wide <- compare_raw |>
     Photo = photo_cell(headshot),
     `Points / Game` = fmt1(ppg),
     `Assists / Game` = fmt1(apg),
+    `Rebounds / Game` = fmt1(rpg),
     `Steals / Game` = fmt1(spg),
     `Blocks / Game` = fmt1(bpg),
     `Turnovers / Game` = fmt1(topg),
@@ -555,6 +557,7 @@ stat_theme <- reactableTheme(
 #| title: Click rows to filter the dashboard.
 doubles24 |>
   reactable(
+    elementId = "main-table",
     compact = FALSE,
     highlight = TRUE,
     filterable = FALSE,
