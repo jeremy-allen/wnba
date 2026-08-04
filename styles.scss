@@ -115,6 +115,13 @@ $card-spacer-y: 10px;
   margin: 0 auto;
 }
 
+// a little more room than the 6px the other tables use -- this one is dense
+// and read across rows rather than scanned down columns
+#compare-table .rt-td-inner,
+#compare-table .rt-th-inner {
+  padding: 10px;
+}
+
 #main-table {
   margin-top: 3px;
 }
