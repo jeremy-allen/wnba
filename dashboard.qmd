@@ -681,9 +681,6 @@ tp24 |>
     highlight = TRUE,
     filterable = FALSE,
     defaultPageSize = 20,
-    selection = "multiple",
-    onClick = "select",
-    rowStyle = list(cursor = "pointer"),
     defaultSorted = list(rank = "asc"),
     theme = stat_theme,
     columns = list(
@@ -708,9 +705,6 @@ ta24 |>
     highlight = TRUE,
     filterable = FALSE,
     defaultPageSize = 20,
-    selection = "multiple",
-    onClick = "select",
-    rowStyle = list(cursor = "pointer"),
     defaultSorted = list(rank = "asc"),
     theme = stat_theme,
     columns = list(
@@ -735,9 +729,6 @@ tr24 |>
     highlight = TRUE,
     filterable = FALSE,
     defaultPageSize = 20,
-    selection = "multiple",
-    onClick = "select",
-    rowStyle = list(cursor = "pointer"),
     defaultSorted = list(rank = "asc"),
     theme = stat_theme,
     columns = list(
@@ -762,9 +753,6 @@ ts24 |>
     highlight = TRUE,
     filterable = FALSE,
     defaultPageSize = 20,
-    selection = "multiple",
-    onClick = "select",
-    rowStyle = list(cursor = "pointer"),
     defaultSorted = list(rank = "asc"),
     theme = stat_theme,
     columns = list(
@@ -791,9 +779,6 @@ tb24 |>
     highlight = TRUE,
     filterable = FALSE,
     defaultPageSize = 20,
-    selection = "multiple",
-    onClick = "select",
-    rowStyle = list(cursor = "pointer"),
     defaultSorted = list(rank = "asc"),
     theme = stat_theme,
     columns = list(
@@ -818,9 +803,6 @@ gm24 |>
     highlight = TRUE,
     filterable = FALSE,
     defaultPageSize = 20,
-    selection = "multiple",
-    onClick = "select",
-    rowStyle = list(cursor = "pointer"),
     defaultSorted = list(rank = "asc"),
     theme = stat_theme,
     columns = list(
@@ -845,9 +827,6 @@ tm24 |>
     highlight = TRUE,
     filterable = FALSE,
     defaultPageSize = 20,
-    selection = "multiple",
-    onClick = "select",
-    rowStyle = list(cursor = "pointer"),
     defaultSorted = list(rank = "asc"),
     theme = stat_theme,
     columns = list(
@@ -872,9 +851,6 @@ tt24 |>
     highlight = TRUE,
     filterable = FALSE,
     defaultPageSize = 20,
-    selection = "multiple",
-    onClick = "select",
-    rowStyle = list(cursor = "pointer"),
     defaultSorted = list(rank = "asc"),
     theme = stat_theme,
     columns = list(
@@ -975,9 +951,6 @@ tp |>
     highlight = TRUE,
     filterable = FALSE,
     defaultPageSize = 20,
-    selection = "multiple",
-    onClick = "select",
-    rowStyle = list(cursor = "pointer"),
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
@@ -1002,9 +975,6 @@ ta |>
     highlight = TRUE,
     filterable = FALSE,
     defaultPageSize = 20,
-    selection = "multiple",
-    onClick = "select",
-    rowStyle = list(cursor = "pointer"),
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
@@ -1029,10 +999,7 @@ tr |>
     highlight = TRUE,
     filterable = FALSE,
     defaultPageSize = 20,
-    selection = "multiple",
-    onClick = "select",
-    rowStyle = list(cursor = "pointer"),
-   theme = stat_theme,
+    theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
       total_seasons = colDef(name = "total seasons", maxWidth = md),
@@ -1058,9 +1025,6 @@ ts |>
     highlight = TRUE,
     filterable = FALSE,
     defaultPageSize = 20,
-    selection = "multiple",
-    onClick = "select",
-    rowStyle = list(cursor = "pointer"),
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
@@ -1085,9 +1049,6 @@ tb |>
     highlight = TRUE,
     filterable = FALSE,
     defaultPageSize = 20,
-    selection = "multiple",
-    onClick = "select",
-    rowStyle = list(cursor = "pointer"),
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
@@ -1112,9 +1073,6 @@ gm |>
     highlight = TRUE,
     filterable = FALSE,
     defaultPageSize = 20,
-    selection = "multiple",
-    onClick = "select",
-    rowStyle = list(cursor = "pointer"),
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
@@ -1141,9 +1099,6 @@ tm |>
     highlight = TRUE,
     filterable = FALSE,
     defaultPageSize = 20,
-    selection = "multiple",
-    onClick = "select",
-    rowStyle = list(cursor = "pointer"),
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),
@@ -1168,9 +1123,6 @@ tt |>
     highlight = TRUE,
     filterable = FALSE,
     defaultPageSize = 20,
-    selection = "multiple",
-    onClick = "select",
-    rowStyle = list(cursor = "pointer"),
     theme = stat_theme,
     columns = list(
       rank = colDef(maxWidth = sm),

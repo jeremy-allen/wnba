@@ -88,6 +88,12 @@ $card-spacer-y: 10px;
   padding-bottom: 0;
 }
 
+.quarto-dashboard .card .nav-tabs .nav-link.active {
+  background-color: #050707;
+  border-color: #050707;
+  color: #efe3c6;
+}
+
 .compare-hint {
   padding: 6px;
   font-size: 0.8rem;
