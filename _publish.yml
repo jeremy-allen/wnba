@@ -1,0 +1,4 @@
+- source: dashboard.qmd
+  posit-connect-cloud:
+    - id: 019fce5e-f2d4-6c4b-7bde-bcc8564b62e3
+      url: https://connect.posit.cloud/jeremyallen/content/019fce5e-f2d4-6c4b-7bde-bcc8564b62e3
