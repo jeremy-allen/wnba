@@ -552,6 +552,7 @@ stat_theme <- reactableTheme(
 ### Column
 
 ```{r doubles24}
+#| title: Click rows to filter the dashboard.
 doubles24 |>
   reactable(
     compact = FALSE,
@@ -563,8 +564,8 @@ doubles24 |>
     rowStyle = list(cursor = "pointer"),
     theme = doubles_theme,
     columns = list(
-      athlete = colDef(name = "Athlete", maxWidth = md),
-      rookie = colDef(name = "Rookie", maxWidth = md),
+      athlete = colDef(name = "Athlete", maxWidth = md, filterable = TRUE),
+      rookie = colDef(name = "Rookie", maxWidth = md, filterable = TRUE),
       double_double = colDef(name = "Double Dbl", maxWidth = md),
       triple_double = colDef(name = "Triple Dbl", maxWidth = md),
       total_points = colDef(name = "Total Points", maxWidth = md),
@@ -575,8 +576,8 @@ doubles24 |>
           sparkline(rev(values), type = "bar", chartRangeMin = 0, chartRangeMax = max(dat$points, na.rm = TRUE), width = 240, barColor = "#ffffff", barWidth = 4, barSpacing = 1, zeroColor = "#999999", nullColor = "#000000")
         }
       ),
-      position = colDef(name = "Position"),
-      latest_team = colDef(name = "Team"),
+      position = colDef(name = "Position", filterable = TRUE),
+      latest_team = colDef(name = "Team", filterable = TRUE),
       seasons_played = colDef(name = "Seasons Played")
     )
   )
