@@ -690,6 +690,7 @@ ggplotly(
 ) |>
   highlight(
     color = wnba_black,
+    opacityDim = 0.6,
     selected = attrs_selected(line = list(width = 3))
   )
 
