@@ -554,6 +554,53 @@ compare_js <- paste0(
 )
 ```
 
+```{r dribble-js}
+# The instruction on the two player tables is the one thing a first-time
+# visitor has to notice, and a plain card title did not carry it. A trail of
+# basketballs now curves out of the end of the text and drops onto the top
+# edge of the table it is talking about. Quarto builds the card header, so
+# the arc has to be appended to it here rather than emitted with the table.
+#
+# Coordinates are five points sampled off the quadratic curve
+# M2,14 Q78,14 110,42 at t = .15 .38 .6 .8 1, so the balls sit on a real
+# path instead of an eyeballed scatter. The curve is deliberately shallow:
+# the card clips at its own top edge, and a steeper arc put the first dot
+# outside it. Everything else visual -- colors, the bounce, the staggered
+# fade-in -- lives in styles.scss.
+dribble_arc <- paste0(
+  "<svg class='dribble-arc' viewBox='0 0 132 56' width='132' height='56' aria-hidden='true' focusable='false'>",
+  "<circle class='dribble-dot' style='--dot-o:.35;animation-delay:.02s' cx='23.8' cy='14.6' r='2.1'/>",
+  "<circle class='dribble-dot' style='--dot-o:.50;animation-delay:.10s' cx='53.4' cy='18.0' r='3.1'/>",
+  "<circle class='dribble-dot' style='--dot-o:.65;animation-delay:.18s' cx='77.4' cy='24.1' r='4.3'/>",
+  "<circle class='dribble-dot' style='--dot-o:.80;animation-delay:.26s' cx='95.4' cy='31.9' r='6.0'/>",
+  "<g class='dribble-ball'>",
+  "<circle class='dribble-halo' cx='110' cy='42' r='12.4'/>",
+  "<circle class='dribble-skin' cx='110' cy='42' r='9.5'/>",
+  "<path class='dribble-seam' d='M110 32.5v19M100.5 42h19",
+  "M103.3 35.3c3.7 3.7 3.7 9.4 0 13.1M116.7 35.3c-3.7 3.7-3.7 9.4 0 13.1'/>",
+  "</g>",
+  "</svg>"
+)
+
+dribble_js <- paste0(
+  "(function() {\n",
+  "  var arc = \"", dribble_arc, "\";\n",
+  "  window.addEventListener('load', function() {\n",
+  "    ['main-table', 'all-time-table'].forEach(function(id) {\n",
+  "      var tbl = document.getElementById(id);\n",
+  "      var card = tbl ? tbl.closest('.card') : null;\n",
+  "      var title = card ? card.querySelector('.card-header .card-title') : null;\n",
+  "      if (!title) { return; }\n",
+  "      var slot = document.createElement('span');\n",
+  "      slot.className = 'dribble';\n",
+  "      slot.innerHTML = arc;\n",
+  "      title.appendChild(slot);\n",
+  "    });\n",
+  "  });\n",
+  "})();"
+)
+```
+
 ```{r race-prep}
 # cumulative points by game date for the scoring race chart
 race <- dat |>
@@ -713,7 +760,7 @@ stat_theme <- reactableTheme(
 ### Column
 
 ```{r doubles24}
-#| title: Click rows to filter the dashboard.
+#| title: Click a row to filter everything
 doubles24 |>
   reactable(
     elementId = "main-table",
@@ -784,7 +831,8 @@ htmltools::tagList(
     class = "compare-hint",
     "Top 10 by total points shown by default — select players in the left table to compare"
   ),
-  htmltools::tags$script(htmltools::HTML(compare_js))
+  htmltools::tags$script(htmltools::HTML(compare_js)),
+  htmltools::tags$script(htmltools::HTML(dribble_js))
 )
 ```
 
@@ -1113,7 +1161,7 @@ tt24 |>
 ## Row {height=400px}
 
 ```{r alldoubles}
-#| title: Click rows to filter the dashboard.
+#| title: Click a row to filter everything
 doubles |>
   reactable(
     elementId = "all-time-table",
