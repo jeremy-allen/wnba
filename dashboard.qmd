@@ -28,8 +28,9 @@ library(crosstalk)
 
 
 ```{r data}
+this_year <- as.integer(year(now()))
 
-seasons <- c(2004:year(now()))
+seasons <- c(2004:as.integer(this_year))
 
 # Load the configuration
 config <- config::get()
@@ -73,7 +74,7 @@ dat <- dat |>
   left_join(game_types, by = "game_id")
 
 games <- dat |>
-  filter(season == 2024) |>
+  filter(season == this_year) |>
   summarise(
     team_1 = first(team_display_name),
     team_2 = first(opponent_team_display_name),
@@ -84,7 +85,7 @@ games <- dat |>
 # max number of games this year for any team
 num_games <-dat |>
   filter(
-    season == 2024,
+    season == this_year,
     type_id == 1
     ) |>
   select(team_display_name, game_id, game_date) |>
@@ -328,8 +329,8 @@ doubles <- SharedData$new(doubles, group = "experience", key = ~athlete)
 ```
 
 ```{r data24prep}
-pdat24 <- player_stats(data = dat, season_part = "regular", my_season = 2024)
-doubles24 <- player_doubles(data = dat, my_season = 2024)
+pdat24 <- player_stats(data = dat, season_part = "regular", my_season = this_year)
+doubles24 <- player_doubles(data = dat, my_season = this_year)
 
 main_stats24 <- pdat24 |>
   select(
@@ -355,6 +356,89 @@ doubles24 <- doubles24 |>
   select(athlete, rookie, everything())
 
 doubles24 <- SharedData$new(doubles24, group = "experience", key = ~athlete)
+```
+
+```{r comparedata}
+# per-game and percentage stats for the player comparison table;
+# not a SharedData - selection drives column visibility via the JS below
+compare_raw <- dat |>
+  filter(
+    season == this_year,
+    type_id == 1,
+    !is.na(athlete_display_name)
+  ) |>
+  summarise(
+    headshot = first(athlete_headshot_href[!is.na(athlete_headshot_href)]),
+    games = n_distinct(game_id, na.rm = TRUE),
+    total_points = sum(points, na.rm = TRUE),
+    ppg = total_points / games,
+    apg = sum(assists, na.rm = TRUE) / games,
+    spg = sum(steals, na.rm = TRUE) / games,
+    bpg = sum(blocks, na.rm = TRUE) / games,
+    topg = sum(turnovers, na.rm = TRUE) / games,
+    fg_pct = 100 * sum(field_goals_made, na.rm = TRUE) /
+      sum(field_goals_attempted, na.rm = TRUE),
+    tp_pct = 100 * sum(three_point_field_goals_made, na.rm = TRUE) /
+      sum(three_point_field_goals_attempted, na.rm = TRUE),
+    ft_pct = 100 * sum(free_throws_made, na.rm = TRUE) /
+      sum(free_throws_attempted, na.rm = TRUE),
+    fta = sum(free_throws_attempted, na.rm = TRUE),
+    .by = athlete_display_name
+  )
+
+fmt1 <- function(x) if_else(is.finite(x), sprintf("%.1f", x), "—")
+fmt_pct <- function(x) if_else(is.finite(x), sprintf("%.1f%%", x), "—")
+
+photo_cell <- function(url) {
+  if_else(
+    is.na(url),
+    '<div style="width:60px;height:60px;border-radius:50%;background:#efe3c6;display:inline-block;"></div>',
+    paste0(
+      '<img src="', url,
+      '" style="width:60px;height:60px;border-radius:50%;object-fit:cover;background:#ffffff;" loading="lazy">'
+    )
+  )
+}
+
+compare_wide <- compare_raw |>
+  arrange(desc(total_points)) |>
+  transmute(
+    athlete = athlete_display_name,
+    Photo = photo_cell(headshot),
+    `Points / Game` = fmt1(ppg),
+    `Assists / Game` = fmt1(apg),
+    `Steals / Game` = fmt1(spg),
+    `Blocks / Game` = fmt1(bpg),
+    `Turnovers / Game` = fmt1(topg),
+    `FG%` = fmt_pct(fg_pct),
+    `3P%` = fmt_pct(tp_pct),
+    `FT%` = fmt_pct(ft_pct),
+    `FT Attempted` = as.character(fta)
+  ) |>
+  pivot_longer(-athlete, names_to = "stat", values_to = "value") |>
+  pivot_wider(names_from = athlete, values_from = value)
+
+compare_players <- setdiff(names(compare_wide), "stat")
+compare_top10 <- head(compare_players, 10)
+
+# crosstalk selection keys are athlete names, which are exactly the
+# compare-table column ids, so no key-to-column mapping is needed
+compare_js <- paste0(
+  "(function() {\n",
+  "  var players = ", jsonlite::toJSON(compare_players), ";\n",
+  "  var top10 = ", jsonlite::toJSON(compare_top10), ";\n",
+  "  function apply(keys) {\n",
+  "    var shown = (keys && keys.length) ? keys : top10;\n",
+  "    var hidden = players.filter(function(p) { return shown.indexOf(p) === -1; });\n",
+  "    if (window.Reactable) { Reactable.setHiddenColumns('compare-table', hidden); }\n",
+  "  }\n",
+  "  window.addEventListener('load', function() {\n",
+  "    var handle = new crosstalk.SelectionHandle('experience');\n",
+  "    handle.on('change', function(e) { apply(e.value); });\n",
+  "    apply(handle.value);\n",
+  "  });\n",
+  "})();"
+)
 ```
 
 ```{r experience-prep}
@@ -401,7 +485,7 @@ stat_dfs <- stat_names %>%
   map(~ stat(pdat, col = {{ .x }}))
 
 
-# dfs for 2024 stats
+# dfs for this_year stats
 
 stat24_dfs <- stat_names %>%
   set_names() %>%
@@ -449,16 +533,18 @@ stat_theme <- reactableTheme(
 )
 ```
 
-# 2024
+# `r this_year`
 
 ## Row {height=400px}
+
+### Column
 
 ```{r doubles24}
 doubles24 |>
   reactable(
     compact = FALSE,
     highlight = TRUE,
-    filterable = TRUE,
+    filterable = FALSE,
     defaultPageSize = 20,
     selection = "multiple",
     onClick = "select",
@@ -484,8 +570,52 @@ doubles24 |>
   )
 ```
 
+### Column {.tabset}
+
+```{r compare}
+#| title: Compare
+htmltools::tagList(
+  reactable(
+    compare_wide,
+    elementId = "compare-table",
+    sortable = FALSE,
+    pagination = FALSE,
+    highlight = FALSE,
+    compact = TRUE,
+    theme = doubles_theme,
+    defaultColDef = colDef(
+      show = FALSE,
+      html = TRUE,
+      align = "center",
+      vAlign = "center",
+      minWidth = 100
+    ),
+    columns = c(
+      list(
+        stat = colDef(
+          show = TRUE,
+          html = FALSE,
+          name = "",
+          align = "left",
+          sticky = "left",
+          minWidth = lg,
+          style = list(fontWeight = "600")
+        )
+      ),
+      map(set_names(compare_top10), \(x) colDef(show = TRUE))
+    )
+  ),
+  htmltools::div(
+    class = "compare-hint",
+    "Top 10 by total points shown by default — select players in the left table to compare"
+  ),
+  htmltools::tags$script(htmltools::HTML(compare_js))
+)
+```
+
 ```{r points}
-points_plot <- points |> 
+#| title: Points this Season
+points_plot <- points |>
   ggplot(aes(x = n_games, y = n_points, group = athlete)) +
   geom_point(
     size = 2,
@@ -519,7 +649,11 @@ points_plot <- points |>
     aspect.ratio = court_ratio
   )
 
-ggplotly(points_plot, tooltip = c("athlete", "n_games", "n_points"))
+ggplotly(
+  points_plot,
+  height = 330,
+  tooltip = c("athlete", "n_games", "n_points")
+)
 
 ```
 
@@ -533,7 +667,7 @@ tp24 |>
   reactable(
     compact = TRUE,
     highlight = TRUE,
-    filterable = TRUE,
+    filterable = FALSE,
     defaultPageSize = 20,
     selection = "multiple",
     onClick = "select",
@@ -560,7 +694,7 @@ ta24 |>
   reactable(
     compact = TRUE,
     highlight = TRUE,
-    filterable = TRUE,
+    filterable = FALSE,
     defaultPageSize = 20,
     selection = "multiple",
     onClick = "select",
@@ -587,7 +721,7 @@ tr24 |>
   reactable(
     compact = TRUE,
     highlight = TRUE,
-    filterable = TRUE,
+    filterable = FALSE,
     defaultPageSize = 20,
     selection = "multiple",
     onClick = "select",
@@ -614,7 +748,7 @@ ts24 |>
   reactable(
     compact = TRUE,
     highlight = TRUE,
-    filterable = TRUE,
+    filterable = FALSE,
     defaultPageSize = 20,
     selection = "multiple",
     onClick = "select",
@@ -643,7 +777,7 @@ tb24 |>
   reactable(
     compact = TRUE,
     highlight = TRUE,
-    filterable = TRUE,
+    filterable = FALSE,
     defaultPageSize = 20,
     selection = "multiple",
     onClick = "select",
@@ -670,7 +804,7 @@ gm24 |>
   reactable(
     compact = TRUE,
     highlight = TRUE,
-    filterable = TRUE,
+    filterable = FALSE,
     defaultPageSize = 20,
     selection = "multiple",
     onClick = "select",
@@ -697,7 +831,7 @@ tm24 |>
   reactable(
     compact = TRUE,
     highlight = TRUE,
-    filterable = TRUE,
+    filterable = FALSE,
     defaultPageSize = 20,
     selection = "multiple",
     onClick = "select",
@@ -724,7 +858,7 @@ tt24 |>
   reactable(
     compact = TRUE,
     highlight = TRUE,
-    filterable = TRUE,
+    filterable = FALSE,
     defaultPageSize = 20,
     selection = "multiple",
     onClick = "select",
@@ -752,7 +886,7 @@ doubles |>
   reactable(
     compact = FALSE,
     highlight = TRUE,
-    filterable = TRUE,
+    filterable = FALSE,
     defaultPageSize = 20,
     selection = "multiple",
     onClick = "select",
@@ -827,7 +961,7 @@ tp |>
   reactable(
     compact = TRUE,
     highlight = TRUE,
-    filterable = TRUE,
+    filterable = FALSE,
     defaultPageSize = 20,
     selection = "multiple",
     onClick = "select",
@@ -854,7 +988,7 @@ ta |>
   reactable(
     compact = TRUE,
     highlight = TRUE,
-    filterable = TRUE,
+    filterable = FALSE,
     defaultPageSize = 20,
     selection = "multiple",
     onClick = "select",
@@ -881,7 +1015,7 @@ tr |>
   reactable(
     compact = TRUE,
     highlight = TRUE,
-    filterable = TRUE,
+    filterable = FALSE,
     defaultPageSize = 20,
     selection = "multiple",
     onClick = "select",
@@ -910,7 +1044,7 @@ ts |>
   reactable(
     compact = TRUE,
     highlight = TRUE,
-    filterable = TRUE,
+    filterable = FALSE,
     defaultPageSize = 20,
     selection = "multiple",
     onClick = "select",
@@ -937,7 +1071,7 @@ tb |>
   reactable(
     compact = TRUE,
     highlight = TRUE,
-    filterable = TRUE,
+    filterable = FALSE,
     defaultPageSize = 20,
     selection = "multiple",
     onClick = "select",
@@ -964,7 +1098,7 @@ gm |>
   reactable(
     compact = TRUE,
     highlight = TRUE,
-    filterable = TRUE,
+    filterable = FALSE,
     defaultPageSize = 20,
     selection = "multiple",
     onClick = "select",
@@ -993,7 +1127,7 @@ tm |>
   reactable(
     compact = TRUE,
     highlight = TRUE,
-    filterable = TRUE,
+    filterable = FALSE,
     defaultPageSize = 20,
     selection = "multiple",
     onClick = "select",
@@ -1020,7 +1154,7 @@ tt |>
   reactable(
     compact = TRUE,
     highlight = TRUE,
-    filterable = TRUE,
+    filterable = FALSE,
     defaultPageSize = 20,
     selection = "multiple",
     onClick = "select",

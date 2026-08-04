@@ -87,3 +87,15 @@ $card-spacer-y: 10px;
   margin-bottom: 0;
   padding-bottom: 0;
 }
+
+.compare-hint {
+  padding: 6px;
+  font-size: 0.8rem;
+  font-style: italic;
+  color: #4c4c4d;
+}
+
+#compare-table img {
+  display: block;
+  margin: 0 auto;
+}
