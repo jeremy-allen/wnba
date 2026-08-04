@@ -473,6 +473,31 @@ race <- dat |>
   SharedData$new(group = "experience", key = ~athlete)
 ```
 
+```{r efficiency-prep}
+# true shooting percentage vs shot volume for the efficiency chart;
+# floor of 50 field goal attempts keeps tiny-sample players out
+efficiency <- dat |>
+  filter(
+    season == this_year,
+    type_id == 1,
+    !is.na(athlete_display_name)
+  ) |>
+  summarise(
+    n_games = n_distinct(game_id, na.rm = TRUE),
+    fga = sum(field_goals_attempted, na.rm = TRUE),
+    fta = sum(free_throws_attempted, na.rm = TRUE),
+    n_points = sum(points, na.rm = TRUE),
+    .by = athlete_display_name
+  ) |>
+  filter(fga >= 50) |>
+  mutate(
+    fga_per_game = round(fga / n_games, 1),
+    ts_pct = round(100 * n_points / (2 * (fga + 0.44 * fta)), 1)
+  ) |>
+  rename(athlete = athlete_display_name) |>
+  SharedData$new(group = "experience", key = ~athlete)
+```
+
 ```{r experience-prep}
 
 seasons <- dat |>
@@ -736,6 +761,43 @@ ggplotly(
   points_plot,
   height = 330,
   tooltip = c("athlete", "n_games", "n_points")
+)
+
+```
+
+```{r efficiency}
+#| title: Efficiency
+efficiency_plot <- efficiency |>
+  ggplot(aes(x = fga_per_game, y = ts_pct, group = athlete)) +
+  geom_point(
+    size = 2,
+    color = wnba_orange
+  ) +
+  labs(
+    title = "Shooting Efficiency vs Volume",
+    subtitle = "each dot is a player with 50+ field goal attempts - select players in the tables",
+    x = "Field Goal Attempts per Game",
+    y = "True Shooting %"
+  ) +
+  theme_light() +
+  theme(
+    legend.position = "none",
+    text = element_text(color = wnba_tan),
+    axis.text = element_text(color = wnba_tan),
+    axis.line = element_blank(),
+    axis.text.x = element_text(size = 8),
+    axis.title = element_text(size = 10),
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = wnba_black, color = wnba_black),
+    plot.background = element_rect(fill = wnba_black, color = wnba_black),
+    plot.title = element_text(size = 14),
+    plot.margin = unit(c(20, 40, 20, 40), "points")
+  )
+
+ggplotly(
+  efficiency_plot,
+  height = 330,
+  tooltip = c("athlete", "fga_per_game", "ts_pct")
 )
 
 ```
