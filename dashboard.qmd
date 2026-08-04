@@ -454,9 +454,28 @@ compare_js <- paste0(
 )
 ```
 
+```{r race-prep}
+# cumulative points by game date for the scoring race chart
+race <- dat |>
+  filter(
+    season == this_year,
+    type_id == 1,
+    !is.na(athlete_display_name)
+  ) |>
+  select(athlete_display_name, game_date, points) |>
+  mutate(game_date = as_date(game_date)) |>
+  arrange(game_date) |>
+  mutate(
+    cum_points = cumsum(replace_na(points, 0)),
+    .by = athlete_display_name
+  ) |>
+  rename(athlete = athlete_display_name) |>
+  SharedData$new(group = "experience", key = ~athlete)
+```
+
 ```{r experience-prep}
 
-seasons <- dat |> 
+seasons <- dat |>
   summarise(
     n_seasons = n_distinct(season, na.rm = TRUE),
     n_games = n_distinct(game_id, na.rm = TRUE),
@@ -674,6 +693,44 @@ ggplotly(
   points_plot,
   height = 330,
   tooltip = c("athlete", "n_games", "n_points")
+)
+
+```
+
+```{r race}
+#| title: Scoring Race
+race_plot <- race |>
+  ggplot(aes(x = game_date, y = cum_points, group = athlete)) +
+  geom_line(
+    color = wnba_orange,
+    linewidth = 0.3,
+    alpha = 0.4
+  ) +
+  labs(
+    title = "Cumulative Points this Regular Season",
+    subtitle = "each line is a player - select players in the tables",
+    x = NULL,
+    y = "Points Scored"
+  ) +
+  theme_light() +
+  theme(
+    legend.position = "none",
+    text = element_text(color = wnba_tan),
+    axis.text = element_text(color = wnba_tan),
+    axis.line = element_blank(),
+    axis.text.x = element_text(size = 8),
+    axis.title = element_text(size = 10),
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = wnba_black, color = wnba_black),
+    plot.background = element_rect(fill = wnba_black, color = wnba_black),
+    plot.title = element_text(size = 14),
+    plot.margin = unit(c(20, 40, 20, 40), "points")
+  )
+
+ggplotly(
+  race_plot,
+  height = 330,
+  tooltip = c("athlete", "game_date", "cum_points")
 )
 
 ```
