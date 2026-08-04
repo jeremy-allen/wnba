@@ -73,9 +73,14 @@ ps_games_ids <- sched_games |>
 athletes <- dat |>
   select(athlete_id, athlete_display_name)
 
+# Drop All-Star exhibition rosters, which are not real teams. This used to be
+# `filter(team_id < 90)`, back when every franchise had a two-digit id and only
+# the exhibition rosters did not. ESPN now issues six-digit ids to new
+# franchises too, so that test also removed Golden State, Toronto and Portland.
+# Exclude the exhibitions by game type instead, which is what was always meant.
 dat <- dat |>
-  filter(team_id < 90) |> 
-  left_join(game_types, by = "game_id")
+  left_join(game_types, by = "game_id") |>
+  filter(type_id != 4)
 
 games <- dat |>
   filter(season == this_year) |>
