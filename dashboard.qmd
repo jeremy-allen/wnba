@@ -80,7 +80,15 @@ athletes <- dat |>
 # Exclude the exhibitions by game type instead, which is what was always meant.
 dat <- dat |>
   left_join(game_types, by = "game_id") |>
-  filter(type_id != 4)
+  filter(type_id != 4) |>
+  # Drop players who dressed but did not play. ESPN carries a row per rostered
+  # player per game; the inactive ones have no minutes and no stats, but they
+  # still inflate every n_distinct(game_id) used as a games-played denominator.
+  # That is what put this dashboard's per-game averages under ESPN's -- Caitlin
+  # Clark sat 3 games, which read as 19.3 ppg here against ESPN's 21.5.
+  # Dropping them here keeps "one row = one game actually played" true for
+  # everything downstream.
+  filter(!(did_not_play %in% TRUE))
 
 games <- dat |>
   filter(season == this_year) |>
