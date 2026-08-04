@@ -713,7 +713,7 @@ stat_theme <- reactableTheme(
 ### Column
 
 ```{r doubles24}
-#| title: Click a row to filter everything
+#| title: Click rows to filter everything
 doubles24 |>
   reactable(
     elementId = "main-table",
@@ -1113,7 +1113,7 @@ tt24 |>
 ## Row {height=400px}
 
 ```{r alldoubles}
-#| title: Click a row to filter everything
+#| title: Click rows to filter everything
 doubles |>
   reactable(
     elementId = "all-time-table",
