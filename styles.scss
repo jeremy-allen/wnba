@@ -38,6 +38,15 @@ $card-spacer-y: 10px;
   min-width: 60px !important;
 }
 
+// data-freshness stamp appended to the navbar by the `freshness` chunk
+.navbar-stamp {
+  align-self: center;
+  padding-right: 0.5rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.6);
+}
+
 .nav-link-text {
   padding-left: 6px !important;
 }

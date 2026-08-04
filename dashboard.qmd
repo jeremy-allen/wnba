@@ -96,9 +96,44 @@ num_games <-dat |>
   unique() |> 
   arrange(team_display_name, desc(game_date)) |> 
   count(team_display_name, sort = TRUE) |> 
-  head(1) |> 
+  head(1) |>
   pull(n)
 
+```
+
+```{r freshness}
+#| output: asis
+
+# The dashboard is rendered and published by hand, so it carries no other
+# signal of how current it is. Report both dates: the render date alone would
+# imply the data is as fresh as the render, which it is not.
+
+fmt_date <- function(d) {
+  d <- as.Date(d)
+  paste0(format(d, "%b"), " ", as.integer(format(d, "%d")), ", ", format(d, "%Y"))
+}
+
+freshness_stamp <- paste0(
+  "Data through ", fmt_date(max(dat$game_date, na.rm = TRUE)),
+  "  ·  Rendered ", fmt_date(Sys.Date())
+)
+
+# The navbar is built by Quarto after this chunk runs, so append to it on load.
+# The tab list carries Bootstrap's `me-auto`, which right-aligns any sibling
+# placed after it.
+cat(sprintf(
+  '<script>
+document.addEventListener("DOMContentLoaded", function () {
+  var nav = document.querySelector("#dashboard-collapse");
+  if (!nav) return;
+  var stamp = document.createElement("span");
+  stamp.className = "navbar-stamp";
+  stamp.textContent = "%s";
+  nav.appendChild(stamp);
+});
+</script>',
+  freshness_stamp
+))
 ```
 
 ```{r funcs1}
