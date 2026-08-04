@@ -82,16 +82,3 @@ altogether.
   attempts, to keep small samples from dominating the percentage axis.
 - **Playoffs are excluded**, so career totals here run below any source that
   includes postseason play.
-
-## Refreshing the dashboard
-
-```bash
-Rscript update_data.R                          # fetch, validate, cache
-quarto render dashboard.qmd                    # rebuild from the cache
-quarto publish posit-connect-cloud dashboard.qmd --no-render
-```
-
-The data caches (`dat.rds`, `sched.rds`) are deliberately untracked, as is the
-rendered `dashboard.html` — it ran to roughly 10 MB per render and git cannot
-delta-compress minified HTML. Publishing sends the rendered file straight from
-disk, so `--no-render` ships exactly the artifact you inspected.
