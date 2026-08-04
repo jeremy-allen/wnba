@@ -413,6 +413,9 @@ compare_raw <- dat |>
   ) |>
   summarise(
     headshot = first(athlete_headshot_href[!is.na(athlete_headshot_href)]),
+    # nickname rather than the full display name: it has to read under a 60px
+    # photo, where "Golden State Valkyries" wraps to three lines
+    team = team_name[which.max(game_date)],
     games = n_distinct(game_id, na.rm = TRUE),
     total_points = sum(points, na.rm = TRUE),
     ppg = total_points / games,
@@ -434,14 +437,21 @@ compare_raw <- dat |>
 fmt1 <- function(x) if_else(is.finite(x), sprintf("%.1f", x), "—")
 fmt_pct <- function(x) if_else(is.finite(x), sprintf("%.1f%%", x), "—")
 
-photo_cell <- function(url) {
-  if_else(
+photo_cell <- function(url, team) {
+  portrait <- if_else(
     is.na(url),
-    '<div style="width:60px;height:60px;border-radius:50%;background:#efe3c6;display:inline-block;"></div>',
+    '<div style="width:60px;height:60px;border-radius:50%;background:#efe3c6;margin:0 auto;"></div>',
     paste0(
       '<img src="', url,
       '" style="width:60px;height:60px;border-radius:50%;object-fit:cover;background:#ffffff;" loading="lazy">'
     )
+  )
+
+  paste0(
+    '<div class="compare-photo">',
+    portrait,
+    '<div class="compare-team">', coalesce(team, "&mdash;"), '</div>',
+    "</div>"
   )
 }
 
@@ -451,7 +461,7 @@ compare_wide <- compare_raw |>
   arrange(desc(ppg)) |>
   transmute(
     athlete = athlete_display_name,
-    Photo = photo_cell(headshot),
+    Photo = photo_cell(headshot, team),
     `Points / Game` = fmt1(ppg),
     `Assists / Game` = fmt1(apg),
     `Rebounds / Game` = fmt1(rpg),

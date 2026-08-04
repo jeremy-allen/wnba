@@ -149,6 +149,22 @@ $card-spacer-y: 10px;
   margin: 0 auto;
 }
 
+// team nickname captioned under each headshot in the compare table
+.compare-photo {
+  text-align: center;
+}
+
+.compare-team {
+  margin-top: 4px;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  color: rgba(239, 227, 198, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 // a little more room than the 6px the other tables use -- this one is dense
 // and read across rows rather than scanned down columns
 #compare-table .rt-td-inner,
