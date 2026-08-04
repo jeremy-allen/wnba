@@ -38,6 +38,31 @@ $card-spacer-y: 10px;
   min-width: 60px !important;
 }
 
+// escape hatch for a selection that filters the visible page to zero rows,
+// inserted by compare_js; shown only while something is selected
+.navbar-clear {
+  align-self: center;
+  margin-right: 0.9rem;
+  padding: 1px 8px 2px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 3px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.navbar-clear:hover,
+.navbar-clear:focus {
+  border-color: #f78a37;
+  color: #f78a37;
+}
+
+.navbar-clear[hidden] {
+  display: none;
+}
+
 // data-freshness stamp appended to the navbar by the `freshness` chunk
 .navbar-stamp {
   align-self: center;
