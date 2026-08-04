@@ -149,6 +149,45 @@ $card-spacer-y: 10px;
   margin: 0 auto;
 }
 
+// The Methods page is prose, not charts. Cap the measure so lines stay
+// readable rather than running the full width of the viewport, and lift the
+// type off the 11px root the dense tables need.
+#methods .card-body {
+  max-width: 78ch;
+  padding: 1rem 1.75rem 2.5rem;
+  font-size: 1.4rem;
+  line-height: 1.6;
+  overflow-y: auto;
+}
+
+// Quarto renders markdown headings inside a card as `div.h4`, not <h2>, so
+// that they cannot be mistaken for dashboard layout. Style that instead.
+#methods .card-body .h4 {
+  margin-top: 2rem;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid rgba(76, 76, 77, 0.2);
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: #050707;
+}
+
+#methods .card-body > .h4:first-child {
+  margin-top: 0;
+}
+
+#methods table {
+  width: auto;
+  margin: 0.6rem 0 1rem;
+}
+
+#methods blockquote {
+  margin: 1rem 0;
+  padding: 0.5rem 0 0.5rem 1rem;
+  border-left: 3px solid #f57b20;
+  color: #4c4c4d;
+}
+
 // team nickname captioned under each headshot in the compare table
 .compare-photo {
   text-align: center;

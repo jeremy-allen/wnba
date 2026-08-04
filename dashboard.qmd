@@ -86,9 +86,15 @@ dat <- dat |>
   # still inflate every n_distinct(game_id) used as a games-played denominator.
   # That is what put this dashboard's per-game averages under ESPN's -- Caitlin
   # Clark sat 3 games, which read as 19.3 ppg here against ESPN's 21.5.
-  # Dropping them here keeps "one row = one game actually played" true for
-  # everything downstream.
-  filter(!(did_not_play %in% TRUE))
+  #
+  # The `did_not_play` flag only became reliable in 2013. Before that, 10-22%
+  # of rows per season are inactive players it never marked; they show up as a
+  # row with no minutes and every stat column NA. `!is.na(points)` catches
+  # exactly those 7,654 rows and nothing else -- of 102,076 rows that do carry
+  # minutes, not one is blank across all thirteen stat columns.
+  #
+  # Together these keep "one row = one game actually played" true downstream.
+  filter(!(did_not_play %in% TRUE), !is.na(points))
 
 games <- dat |>
   filter(season == this_year) |>
@@ -591,8 +597,12 @@ efficiency <- dat |>
 
 ```{r experience-prep}
 
-# named to avoid shadowing the `seasons` season-range vector defined above
+# named to avoid shadowing the `seasons` season-range vector defined above.
+# The type_id filter matters: this plot's y axis reads "Regular Season Games
+# Played", but without it playoff and Commissioner's Cup games were counted
+# too, overstating 235 careers by as much as 58 games.
 experience <- dat |>
+  filter(type_id == 1) |>
   summarise(
     n_seasons = n_distinct(season, na.rm = TRUE),
     n_games = n_distinct(game_id, na.rm = TRUE),
@@ -1369,3 +1379,11 @@ tt |>
   )
 ```
 
+
+# Methods
+
+::: {.card title="How games and points are calculated"}
+
+{{< include METHODOLOGY.md >}}
+
+:::
