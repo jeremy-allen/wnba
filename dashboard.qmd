@@ -442,7 +442,12 @@ compare_js <- paste0(
   "  }\n",
   "  window.addEventListener('load', function() {\n",
   "    var handle = new crosstalk.SelectionHandle('experience');\n",
-  "    handle.on('change', function(e) { apply(e.value); });\n",
+  "    handle.on('change', function(e) {\n",
+  "      // deselecting the last row broadcasts [] , which plotly renders as\n",
+  "      // all-dimmed; plotly restores full opacity only on a strict null\n",
+  "      if (e.value && e.value.length === 0) { handle.set(null); return; }\n",
+  "      apply(e.value);\n",
+  "    });\n",
   "    apply(handle.value);\n",
   "  });\n",
   "})();"
