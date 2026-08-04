@@ -39,28 +39,37 @@ $card-spacer-y: 10px;
 }
 
 // escape hatch for a selection that filters the visible page to zero rows,
-// inserted by compare_js; shown only while something is selected
-.navbar-clear {
-  align-self: center;
-  margin-right: 0.9rem;
-  padding: 1px 8px 2px;
-  border: 1px solid rgba(255, 255, 255, 0.35);
+// inserted into each player-table card header by compare_js and shown only
+// while something is selected. Solid orange so it reads as the one live
+// control on a page whose tables may have just gone empty.
+.card-header .card-clear {
+  margin-left: auto;
+  padding: 2px 10px 3px;
+  border: 0;
   border-radius: 3px;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 0.75rem;
+  background: #e96500;
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
 }
 
-.navbar-clear:hover,
-.navbar-clear:focus {
-  border-color: #f78a37;
-  color: #f78a37;
+.card-header .card-clear:hover,
+.card-header .card-clear:focus {
+  background: #050707;
+  color: #efe3c6;
 }
 
-.navbar-clear[hidden] {
+.card-header .card-clear[hidden] {
   display: none;
+}
+
+// the header holds the title and, when active, the clear button at its end
+.card-header:has(.card-clear) {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 // data-freshness stamp appended to the navbar by the `freshness` chunk
