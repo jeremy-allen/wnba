@@ -400,8 +400,10 @@ photo_cell <- function(url) {
   )
 }
 
+# column order is fixed at render time, so arranging by ppg here keeps any
+# selection of columns sorted left-to-right by descending points per game
 compare_wide <- compare_raw |>
-  arrange(desc(total_points)) |>
+  arrange(desc(ppg)) |>
   transmute(
     athlete = athlete_display_name,
     Photo = photo_cell(headshot),
@@ -419,7 +421,11 @@ compare_wide <- compare_raw |>
   pivot_wider(names_from = athlete, values_from = value)
 
 compare_players <- setdiff(names(compare_wide), "stat")
-compare_top10 <- head(compare_players, 10)
+
+compare_top10 <- compare_raw |>
+  arrange(desc(total_points)) |>
+  slice_head(n = 10) |>
+  pull(athlete_display_name)
 
 # crosstalk selection keys are athlete names, which are exactly the
 # compare-table column ids, so no key-to-column mapping is needed
@@ -522,6 +528,12 @@ doubles_theme <- reactableTheme(
   pageButtonActiveStyle = list(backgroundColor = wnba_black)
 )
 
+compare_theme <- reactableTheme(
+  color = wnba_tan,
+  backgroundColor = wnba_black,
+  borderColor = wnba_gray
+)
+
 stat_theme <- reactableTheme(
   backgroundColor = wnba_tan,
   borderColor = wnba_tan,
@@ -582,7 +594,7 @@ htmltools::tagList(
     pagination = FALSE,
     highlight = FALSE,
     compact = TRUE,
-    theme = doubles_theme,
+    theme = compare_theme,
     defaultColDef = colDef(
       show = FALSE,
       html = TRUE,
