@@ -488,6 +488,9 @@ compare_wide <- compare_raw |>
     `FT Attempted` = as.character(fta)
   ) |>
   pivot_longer(-athlete, names_to = "stat", values_to = "value") |>
+  # the headshots need no row label; "Photo" only stated the obvious. The name
+  # has to survive as a column above so pivot_longer has something to key on.
+  mutate(stat = if_else(stat == "Photo", "", stat)) |>
   pivot_wider(names_from = athlete, values_from = value)
 
 compare_players <- setdiff(names(compare_wide), "stat")
