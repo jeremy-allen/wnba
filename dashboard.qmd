@@ -24,6 +24,10 @@ library(reactable)
 library(purrr)
 library(plotly)
 library(crosstalk)
+# required by wehoop: pre-2024 season .rds files store their columns as arrow
+# ALTREP vectors, which readRDS silently returns as length-zero vectors (and
+# rbindlist then pads to NA) unless arrow is loaded
+library(arrow)
 ```
 
 
@@ -500,15 +504,21 @@ efficiency <- dat |>
 
 ```{r experience-prep}
 
-seasons <- dat |>
+# named to avoid shadowing the `seasons` season-range vector defined above
+experience <- dat |>
   summarise(
     n_seasons = n_distinct(season, na.rm = TRUE),
     n_games = n_distinct(game_id, na.rm = TRUE),
     .by = c(athlete_display_name)
-  ) |> 
-  arrange(n_seasons) |> 
-  rename(athlete = athlete_display_name) |> 
-  drop_na(athlete) |> 
+  ) |>
+  arrange(n_seasons) |>
+  rename(athlete = athlete_display_name) |>
+  drop_na(athlete)
+
+# longest career in the data, used to size the experience plot x axis
+max_seasons <- max(experience$n_seasons, na.rm = TRUE)
+
+player_experience <- experience |>
   SharedData$new(group = "experience", key = ~athlete)
 
 points <- dat |> 
@@ -1013,8 +1023,8 @@ doubles |>
     onClick = "select",
     rowStyle = list(cursor = "pointer"),
     columns = list(
-      athlete = colDef(name = "Athlete", maxWidth = md),
-      rookie = colDef(name = "Rookie", maxWidth = md),
+      athlete = colDef(name = "Athlete", maxWidth = md, filterable = TRUE),
+      rookie = colDef(name = "Rookie", maxWidth = md, filterable = TRUE),
       double_double = colDef(name = "Double Dbl", maxWidth = md),
       triple_double = colDef(name = "Triple Dbl", maxWidth = md),
       total_points = colDef(name = "Total Points", maxWidth = md),
@@ -1026,8 +1036,8 @@ doubles |>
           sparkline(values, type = "bar", width = 153, chartRangeMin = 0, barColor = "#ffffff", barWidth = 4, barSpacing = 1, zeroColor = "#999999", nullColor = "#000000")
         }
       ),
-      position = colDef(name = "Position"),
-      latest_team = colDef(name = "Team"),
+      position = colDef(name = "Position", filterable = TRUE),
+      latest_team = colDef(name = "Team", filterable = TRUE),
       total_games = colDef(name = "Total Games"),
       total_seasons = colDef(name = "Total Seasons"),
       seasons = colDef(name = "Seasons")
@@ -1037,7 +1047,7 @@ doubles |>
 ```
 
 ```{r experience}
-seasons_plot <- seasons |> 
+seasons_plot <- player_experience |>
   ggplot(aes(x = n_seasons, y = n_games, group = athlete)) +
   geom_point(size = 2, color = wnba_orange)  +
   labs(
@@ -1047,8 +1057,8 @@ seasons_plot <- seasons |>
     y = "Regular Season Games Played"
   ) +
   scale_x_discrete(
-    limits = factor(c(1:22)),
-    breaks = as.character(c(1:22))
+    limits = factor(seq_len(max_seasons)),
+    breaks = as.character(seq_len(max_seasons))
   ) +
   theme_light() +
   theme(
