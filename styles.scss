@@ -38,6 +38,21 @@ $card-spacer-y: 10px;
   min-width: 60px !important;
 }
 
+// Space the navbar tabs evenly. The min-width above only pads labels short
+// enough to fall under it: "2026" got the extra room, "All Time" and "Methods"
+// did not, so the gap before Methods came out half the size of the others
+// (29px, then 15px). Symmetric link padding spaces every tab the same
+// regardless of label length. Scoped to .navbar-nav so the card tabsets, which
+// use the same Bootstrap classes, keep the min-width.
+.navbar-nav .nav-item {
+  min-width: 0 !important;
+}
+
+.navbar-nav .nav-link {
+  padding-left: 14px !important;
+  padding-right: 14px !important;
+}
+
 // escape hatch for a selection that filters the visible page to zero rows,
 // inserted into each player-table card header by compare_js and shown only
 // while something is selected. Solid orange so it reads as the one live
