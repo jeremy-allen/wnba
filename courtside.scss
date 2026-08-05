@@ -3,8 +3,8 @@
 // Bootstrap still ships the page skeleton under `page-layout: custom`, so the
 // few variables it reads for <body> are set here rather than fought with
 // !important further down.
-$body-bg: #08090b !default;
-$body-color: #f2ece1 !default;
+$body-bg: #101318 !default;
+$body-color: #ded8cb !default;
 $link-color: #f57b20 !default;
 $font-size-root: 16px !default;
 
@@ -17,21 +17,28 @@ $font-size-root: 16px !default;
 // applied inline as --team on individual elements, so every accent on a card,
 // bar or line is the franchise's own colour rather than a chart default.
 // ---------------------------------------------------------------------------
+// A warm off-white on a near-black page came out at about 17:1, which is more
+// separation than any text needs and reads as glare across a page this dark.
+// Lifting the ink a few steps and pulling the type back off pure white puts
+// body copy near 12:1 — still comfortably past AAA, with the edge taken off.
+// The two giant display sizes go a step dimmer again, because type that large
+// reads brighter than its colour at body size.
 :root {
-  --ink: #08090b;
-  --panel: #0f1116;
-  --panel-2: #14171d;
-  --panel-3: #1a1e26;
-  --line: #242a34;
-  --line-soft: #1b2028;
+  --ink: #101318;
+  --panel: #171a21;
+  --panel-2: #1c2029;
+  --panel-3: #232732;
+  --line: #2c313c;
+  --line-soft: #212632;
 
-  --bone: #f2ece1;
-  --mute: #9198a4;
-  --mute-2: #676e7a;
+  --bone: #ded8cb;
+  --headline: #cbc5b8;
+  --mute: #969ea9;
+  --mute-2: #7b8390;
 
   --orange: #f57b20;
   --orange-hi: #ff9d5c;
-  --tan: #efe3c6;
+  --tan: #ddd0b4;
   --win: #4ec9a0;
   --loss: #e05c5c;
 
@@ -166,7 +173,7 @@ h2.band-title {
   line-height: 0.92;
   letter-spacing: 0.01em;
   text-transform: uppercase;
-  color: var(--bone);
+  color: var(--headline);
 }
 
 .band-sub {
@@ -203,7 +210,7 @@ h2.band-title {
   opacity: 0.5;
 }
 
-#court .ln { fill: none; stroke: #2b323d; stroke-width: 1.1; }
+#court .ln { fill: none; stroke: #363d4a; stroke-width: 1.1; }
 
 #tipoff::before {
   content: "";
@@ -253,6 +260,7 @@ h2.band-title {
 
 h1.hero-title {
   margin: 1.2rem 0 0;
+  color: var(--headline);
   font-family: var(--display);
   font-size: clamp(3.6rem, 15vw, 13rem);
   font-weight: 700;
@@ -292,7 +300,7 @@ h1.hero-title .ghost {
   font-size: clamp(2.6rem, 6vw, 4.6rem);
   font-weight: 700;
   line-height: 1;
-  color: var(--bone);
+  color: var(--headline);
   font-variant-numeric: tabular-nums;
 }
 
@@ -315,7 +323,7 @@ h1.hero-title .ghost {
   padding: 0.85rem 0;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
-  background: rgba(15, 17, 22, 0.72);
+  background: rgba(23, 26, 33, 0.72);
   overflow: hidden;
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
   mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
@@ -551,7 +559,7 @@ h1.hero-title .ghost {
   font-size: 4.4rem;
   font-weight: 700;
   line-height: 1;
-  color: rgba(255, 255, 255, 0.13);
+  color: rgba(255, 255, 255, 0.16);
   pointer-events: none;
 }
 
@@ -606,7 +614,7 @@ h1.hero-title .ghost {
   gap: 0.28rem;
   margin-top: 0.4rem;
   padding-top: 0.4rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .pcard .headline .v {
@@ -941,7 +949,7 @@ h1.hero-title .ghost {
 
 #race .grid { stroke: var(--line-soft); stroke-width: 1; }
 #race .axis { fill: var(--mute-2); font-family: var(--display); font-size: 11px; letter-spacing: 0.12em; }
-#race .pack { fill: none; stroke: #333a45; stroke-width: 1; opacity: 0.55; }
+#race .pack { fill: none; stroke: #414a58; stroke-width: 1; opacity: 0.55; }
 #race .lead { fill: none; stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
 #race .lead-label { font-family: var(--display); font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
 #race .hot { stroke-width: 3.4; }

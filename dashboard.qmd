@@ -532,7 +532,7 @@ h('<h2 class="band-title">The race</h2>')
 h('<p class="band-sub">Points scored so far, night after night. Every line is a player; ',
   "the eight in front carry their names in their team&rsquo;s colour and the rest are the ",
   "pack behind them. A line that steepens is someone getting hot. ",
-  "<b>Whoever is selected above is drawn in white.</b></p>")
+  "<b>Whoever is selected above is the thick pale line.</b></p>")
 h("</div>")
 h('<div class="race-wrap reveal" id="race-anchor">',
   '<svg id="race" viewBox="0 0 1000 430" role="img" aria-label="Cumulative points by date for every player"></svg>',

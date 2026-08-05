@@ -298,7 +298,7 @@
         cell(f1(p.apg), "ast / gm", p.rk_apg) +
         cell(String(p.g), "games", 0) +
       "</div>" +
-      '<div class="dos-sec"><h4>Shooting · white tick is the league</h4>' +
+      '<div class="dos-sec"><h4>Shooting · the tick is the league average</h4>' +
         meter("Field goals", p.fgp, D.avg.fgp, 65) +
         meter("Three-pointers", p.tpp, D.avg.tpp, 50) +
         meter("Free throws", p.ftp, D.avg.ftp, 100) +
@@ -455,6 +455,10 @@
   ------------------------------------------------------------------------- */
   var svg = document.getElementById("race");
   var R = D.race;
+  /* read rather than repeat, so the selected line and its label track the
+     stylesheet's text colour instead of drifting away from it */
+  var BONE = getComputedStyle(document.documentElement)
+    .getPropertyValue("--bone").trim() || "#ded8cb";
   var VW = 1000, VH = 430, PAD = { t: 18, r: 132, b: 34, l: 46 };
 
   function xAt(i) { return PAD.l + (i / (R.dates.length - 1)) * (VW - PAD.l - PAD.r); }
@@ -496,7 +500,7 @@
       if (!s.top && !isSel) { pack.push('<path class="pack" d="' + path(s.v) + '"/>'); return; }
       var lp = lastPoint(s.v);
       lead.push('<path class="lead' + (isSel ? " hot" : "") + '" stroke="' +
-        (isSel ? "#f2ece1" : s.c) + '" d="' + path(s.v) + '" data-n="' + esc(s.n) + '"/>');
+        (isSel ? BONE : s.c) + '" d="' + path(s.v) + '" data-n="' + esc(s.n) + '"/>');
       if (lp) {
         labels.push({ y: yAt(lp.v), x: xAt(lp.i), n: s.n, c: s.c, sel: isSel });
       }
@@ -509,7 +513,7 @@
     }
     var lab = labels.map(function (l) {
       return '<text class="lead-label" x="' + (l.x + 7).toFixed(1) + '" y="' + (l.y + 4).toFixed(1) +
-        '" fill="' + (l.sel ? "#f2ece1" : l.c) + '">' + esc(l.n) + "</text>";
+        '" fill="' + (l.sel ? BONE : l.c) + '">' + esc(l.n) + "</text>";
     }).join("");
 
     svg.innerHTML = g.join("") + pack.join("") + lead.join("") + lab;
