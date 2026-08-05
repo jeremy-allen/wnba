@@ -1238,7 +1238,7 @@ ggplotly(
 
 ```
 
-## Row {height=430px}
+## Row {height=585px}
 
 ### Column {width=62% .tabset}
 
@@ -1386,7 +1386,7 @@ ggplotly(seasons_plot, tooltip = c("athlete", "n_seasons", "n_games"))
 
 ```
 
-## Row {height=430px}
+## Row {height=470px}
 
 ### Column {.tabset}
 
