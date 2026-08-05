@@ -1,0 +1,1166 @@
+/*-- scss:defaults --*/
+
+// Bootstrap still ships the page skeleton under `page-layout: custom`, so the
+// few variables it reads for <body> are set here rather than fought with
+// !important further down.
+$body-bg: #08090b !default;
+$body-color: #f2ece1 !default;
+$link-color: #f57b20 !default;
+$font-size-root: 16px !default;
+
+/*-- scss:rules --*/
+
+// ---------------------------------------------------------------------------
+// Tokens
+//
+// One palette for the whole page. Team colours arrive from the data and are
+// applied inline as --team on individual elements, so every accent on a card,
+// bar or line is the franchise's own colour rather than a chart default.
+// ---------------------------------------------------------------------------
+:root {
+  --ink: #08090b;
+  --panel: #0f1116;
+  --panel-2: #14171d;
+  --panel-3: #1a1e26;
+  --line: #242a34;
+  --line-soft: #1b2028;
+
+  --bone: #f2ece1;
+  --mute: #9198a4;
+  --mute-2: #676e7a;
+
+  --orange: #f57b20;
+  --orange-hi: #ff9d5c;
+  --tan: #efe3c6;
+  --win: #4ec9a0;
+  --loss: #e05c5c;
+
+  --display: "Avenir Next Condensed", "Helvetica Neue Condensed",
+    "Roboto Condensed", "Arial Narrow", "Liberation Sans Narrow", sans-serif;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+  --num: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+
+  --gut: clamp(1.25rem, 4vw, 4.5rem);
+  --team: var(--orange);
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body.fullcontent {
+  margin: 0;
+  background: var(--ink);
+  color: var(--bone);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+.page-layout-custom { max-width: none; padding: 0; }
+
+// Every numeral on the page is compared against another numeral directly above
+// or below it, so all of them are tabular.
+.num, table, .stat-value { font-variant-numeric: tabular-nums; }
+
+::selection { background: var(--orange); color: var(--ink); }
+
+// ---------------------------------------------------------------------------
+// Page furniture: scroll progress, section rail
+// ---------------------------------------------------------------------------
+#progress {
+  position: fixed;
+  top: 0; left: 0;
+  z-index: 60;
+  height: 2px;
+  width: 0;
+  background: linear-gradient(90deg, var(--orange), var(--orange-hi));
+}
+
+#rail {
+  position: fixed;
+  top: 50%;
+  right: clamp(0.6rem, 1.6vw, 1.6rem);
+  z-index: 55;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  align-items: flex-end;
+}
+
+#rail a {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--mute-2);
+  text-decoration: none;
+  font-family: var(--display);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+#rail a .dot {
+  width: 7px; height: 7px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  flex: none;
+  transition: background 0.2s, transform 0.2s;
+}
+
+#rail a .lbl {
+  opacity: 0;
+  transform: translateX(6px);
+  transition: opacity 0.2s, transform 0.2s;
+  white-space: nowrap;
+}
+
+#rail:hover a .lbl { opacity: 1; transform: none; }
+
+#rail a:hover, #rail a.on { color: var(--bone); }
+#rail a.on .dot { background: var(--orange); border-color: var(--orange); transform: scale(1.35); }
+
+@media (max-width: 900px) { #rail { display: none; } }
+
+// ---------------------------------------------------------------------------
+// Bands
+// ---------------------------------------------------------------------------
+.band {
+  position: relative;
+  padding: clamp(3.5rem, 8vh, 7rem) var(--gut);
+  border-top: 1px solid var(--line-soft);
+}
+
+.band-head { margin-bottom: clamp(1.75rem, 4vh, 3rem); }
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin: 0 0 0.5rem;
+  font-family: var(--display);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--orange);
+}
+
+.eyebrow::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--line), transparent);
+}
+
+h2.band-title {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(2.4rem, 6vw, 4.6rem);
+  font-weight: 700;
+  line-height: 0.92;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: var(--bone);
+}
+
+.band-sub {
+  max-width: 62ch;
+  margin: 0.85rem 0 0;
+  color: var(--mute);
+  font-size: 1.02rem;
+}
+
+.band-sub b { color: var(--bone); font-weight: 600; }
+
+// ---------------------------------------------------------------------------
+// 1. Tip-off
+// ---------------------------------------------------------------------------
+#tipoff {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 100svh;
+  padding: 4rem var(--gut) 0;
+  border-top: 0;
+  overflow: hidden;
+}
+
+// Half-court in hairlines, plus a low orange glow off the baseline. Both are
+// decoration only and sit behind everything.
+#court {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+#court .ln { fill: none; stroke: #2b323d; stroke-width: 1.1; }
+
+#tipoff::before {
+  content: "";
+  position: absolute;
+  left: 50%; bottom: -45vh;
+  z-index: 0;
+  width: 120vw; height: 90vh;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at center, rgba(245, 123, 32, 0.20), transparent 62%);
+  pointer-events: none;
+}
+
+.hero { position: relative; z-index: 1; }
+
+.hero-kicker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  font-family: var(--display);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+
+.hero-kicker .live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--orange);
+}
+
+.hero-kicker .live::before {
+  content: "";
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--orange);
+  animation: pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(245, 123, 32, 0.5); }
+  50% { opacity: 0.55; box-shadow: 0 0 0 7px rgba(245, 123, 32, 0); }
+}
+
+h1.hero-title {
+  margin: 1.2rem 0 0;
+  font-family: var(--display);
+  font-size: clamp(3.6rem, 15vw, 13rem);
+  font-weight: 700;
+  line-height: 0.82;
+  letter-spacing: -0.005em;
+  text-transform: uppercase;
+}
+
+h1.hero-title .l2 { display: block; color: var(--orange); }
+
+// The outlined word is the one piece of pure typographic play on the page: it
+// keeps the three-line title from reading as a solid block.
+h1.hero-title .ghost {
+  color: transparent;
+  -webkit-text-stroke: 1.5px var(--mute-2);
+}
+
+.hero-lede {
+  max-width: 46ch;
+  margin: 1.6rem 0 0;
+  font-size: clamp(1rem, 1.5vw, 1.2rem);
+  color: var(--mute);
+}
+
+.hero-lede b { color: var(--bone); font-weight: 600; }
+
+.hero-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(1.5rem, 5vw, 4.5rem);
+  margin-top: clamp(2rem, 5vh, 3.5rem);
+}
+
+.figure .fv {
+  display: block;
+  font-family: var(--display);
+  font-size: clamp(2.6rem, 6vw, 4.6rem);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--bone);
+  font-variant-numeric: tabular-nums;
+}
+
+.figure .fl {
+  display: block;
+  margin-top: 0.35rem;
+  font-family: var(--display);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--mute-2);
+}
+
+// --- ticker ---------------------------------------------------------------
+.ticker {
+  position: relative;
+  z-index: 1;
+  margin: clamp(2.5rem, 6vh, 4rem) calc(var(--gut) * -1) 0;
+  padding: 0.85rem 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: rgba(15, 17, 22, 0.72);
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+}
+
+.ticker-track {
+  display: flex;
+  width: max-content;
+  gap: 2.5rem;
+  animation: slide 70s linear infinite;
+}
+
+.ticker:hover .ticker-track { animation-play-state: paused; }
+
+@keyframes slide { to { transform: translateX(-50%); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track { animation: none; }
+  .ticker { overflow-x: auto; }
+}
+
+.final {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex: none;
+  font-family: var(--display);
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.final .side { display: flex; align-items: center; gap: 0.4rem; color: var(--mute-2); }
+.final .side.won { color: var(--bone); }
+.final .side .ab { font-weight: 700; }
+.final .side .sc { font-variant-numeric: tabular-nums; }
+.final .side .swatch { width: 3px; height: 15px; background: var(--mute-2); }
+.final .side.won .swatch { background: var(--tc, var(--orange)); }
+.final .at { color: var(--mute-2); font-size: 0.75rem; }
+.final .day { color: var(--mute-2); font-size: 0.72rem; letter-spacing: 0.16em; }
+
+// ---------------------------------------------------------------------------
+// 2. Who's who — controls, roster wall, dossier
+// ---------------------------------------------------------------------------
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: center;
+  margin-bottom: 1.4rem;
+}
+
+#search {
+  flex: 1 1 200px;
+  max-width: 300px;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--panel);
+  color: var(--bone);
+  font-family: var(--sans);
+  font-size: 0.92rem;
+}
+
+#search::placeholder { color: var(--mute-2); }
+#search:focus { outline: none; border-color: var(--orange); }
+
+.sortbar {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.sortbar button {
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-right: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--mute);
+  font-family: var(--display);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.sortbar button:last-child { border-right: 0; }
+.sortbar button:hover { color: var(--bone); }
+.sortbar button.on { background: var(--orange); color: var(--ink); }
+
+.teamchips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1.6rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.32rem 0.7rem 0.32rem 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--mute);
+  font-family: var(--display);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+// Several crests are near-black and vanish against the chip, so the resting
+// state is a flat white knockout rather than a desaturated logo; the real
+// colours come back on hover and while the filter is on.
+.chip img {
+  width: 19px; height: 19px;
+  object-fit: contain;
+  filter: brightness(0) invert(1) opacity(0.5);
+  transition: filter 0.15s;
+}
+.chip:hover { color: var(--bone); border-color: var(--mute-2); }
+.chip:hover img { filter: none; }
+.chip.on img { filter: none; }
+.chip.on {
+  color: var(--ink);
+  background: var(--bone);
+  border-color: var(--bone);
+}
+.chip.all { padding-left: 0.7rem; }
+
+// --- two-column shell ------------------------------------------------------
+.wall-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: clamp(1.25rem, 2.5vw, 2.25rem);
+  align-items: start;
+}
+
+// Quarto's page-grid CSS hands out `grid-column` by element type; reset it so
+// the two children land in this shell's own tracks.
+.wall-shell > * { grid-column: auto; min-width: 0; }
+
+// One column below 1080. This stays a grid rather than becoming a flex column:
+// `align-items: start` in a flex column shrink-wraps each child, which
+// collapsed the wall to a single card wide.
+@media (max-width: 1080px) {
+  .wall-shell { grid-template-columns: minmax(0, 1fr); }
+}
+
+#wall {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 0.6rem;
+}
+
+// A wall of 225 cards is nine thousand pixels of page, which buries every
+// chapter after it. Giving it its own scrollbar instead would hijack the wheel
+// for anyone scrolling past with the cursor over the cards, so it opens on a
+// few rows and the rest is one button away.
+.more {
+  width: 100%;
+  margin-top: 0.7rem;
+  padding: 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--panel);
+  color: var(--mute);
+  font-family: var(--display);
+  font-size: 0.86rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.more:hover { color: var(--bone); border-color: var(--orange); }
+.more[hidden] { display: none; }
+
+#wall .empty {
+  grid-column: 1 / -1;
+  padding: 3rem 0;
+  text-align: center;
+  color: var(--mute-2);
+  font-family: var(--display);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+// --- player card -----------------------------------------------------------
+.pcard {
+  position: relative;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 45%),
+    linear-gradient(180deg, transparent 38%, var(--panel) 100%),
+    linear-gradient(180deg, var(--team) -35%, var(--panel-2) 72%);
+  cursor: pointer;
+  overflow: hidden;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  transition: transform 0.18s cubic-bezier(0.2, 0.7, 0.3, 1), border-color 0.18s, box-shadow 0.18s;
+}
+
+.pcard:hover, .pcard:focus-visible {
+  transform: translateY(-4px);
+  border-color: var(--team);
+  box-shadow: 0 12px 28px -14px rgba(0, 0, 0, 0.9);
+  outline: none;
+}
+
+.pcard.on {
+  border-color: var(--orange);
+  box-shadow: 0 0 0 1px var(--orange);
+}
+
+// The jersey number sits behind the portrait at display size — the single
+// device that makes a wall of 200-odd small cards read as a wall of players
+// rather than a contact sheet.
+.pcard .jersey {
+  position: absolute;
+  top: -0.22em; right: 0.06em;
+  font-family: var(--display);
+  font-size: 4.4rem;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.13);
+  pointer-events: none;
+}
+
+.pcard .shot {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 0.92;
+  object-fit: cover;
+  object-position: top center;
+  background: transparent;
+}
+
+.pcard .noshot {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1 / 0.92;
+  font-family: var(--display);
+  font-size: 1.7rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.pcard .meta { display: block; padding: 0.45rem 0.6rem 0.6rem; }
+
+.pcard .nm {
+  display: block;
+  // two lines' worth whether or not the name needs them, so a row of cards
+  // stays level when one of them is a Sarah Ashlee Barker
+  min-height: 2.12em;
+  font-family: var(--display);
+  font-size: 0.96rem;
+  font-weight: 700;
+  line-height: 1.06;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--bone);
+}
+
+.pcard .sub {
+  display: block;
+  margin-top: 0.18rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mute-2);
+}
+
+.pcard .headline {
+  display: flex;
+  align-items: baseline;
+  gap: 0.28rem;
+  margin-top: 0.4rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.pcard .headline .v {
+  font-family: var(--display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--bone);
+  font-variant-numeric: tabular-nums;
+}
+
+.pcard .headline .u {
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mute-2);
+}
+
+// --- dossier ---------------------------------------------------------------
+#dossier {
+  position: sticky;
+  top: 1.25rem;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--team);
+  border-radius: 3px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--team) 26%, transparent), transparent 210px),
+    var(--panel);
+  overflow: hidden;
+}
+
+
+// must follow the sticky rule above, not precede it, or it loses the cascade
+@media (max-width: 1080px) {
+  #dossier { position: static; order: -1; }
+}
+
+.dos-top { display: flex; gap: 0.9rem; padding: 1.1rem 1.1rem 0.9rem; }
+
+.dos-shot {
+  width: 96px; height: 96px;
+  flex: none;
+  border-radius: 3px;
+  object-fit: cover;
+  object-position: top center;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.dos-id { min-width: 0; }
+
+.dos-name {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 1.85rem;
+  font-weight: 700;
+  line-height: 0.95;
+  text-transform: uppercase;
+  color: var(--bone);
+}
+
+.dos-team {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.45rem;
+  font-family: var(--display);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+
+.dos-team img { width: 20px; height: 20px; object-fit: contain; }
+
+.dos-verdict {
+  margin: 0 1.1rem 0.9rem;
+  padding: 0.6rem 0.75rem;
+  border-left: 2px solid var(--team);
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 0.87rem;
+  line-height: 1.45;
+  color: var(--mute);
+}
+
+.dos-verdict b { color: var(--bone); font-weight: 600; }
+
+.dos-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid var(--line);
+}
+
+.dos-grid .cell {
+  padding: 0.65rem 0.5rem;
+  border-right: 1px solid var(--line);
+  text-align: center;
+}
+
+.dos-grid .cell:last-child { border-right: 0; }
+
+.dos-grid .cell .v {
+  display: block;
+  font-family: var(--display);
+  font-size: 1.55rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--bone);
+  font-variant-numeric: tabular-nums;
+}
+
+.dos-grid .cell .k {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mute-2);
+}
+
+.dos-grid .cell .rk { display: block; margin-top: 0.15rem; font-size: 0.62rem; color: var(--team); }
+
+.dos-sec { padding: 0.9rem 1.1rem; border-top: 1px solid var(--line); }
+
+.dos-sec h4 {
+  margin: 0 0 0.6rem;
+  font-family: var(--display);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--mute-2);
+}
+
+// shooting meters: player's mark against the league average tick
+.meter { margin-bottom: 0.6rem; }
+.meter:last-child { margin-bottom: 0; }
+
+.meter .top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.22rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mute-2);
+}
+
+.meter .top .val { font-family: var(--display); font-size: 0.95rem; font-weight: 700; color: var(--bone); }
+
+.meter .track {
+  position: relative;
+  height: 6px;
+  // the league tick sits above the bar, so it must not be clipped
+  overflow: visible;
+  border-radius: 3px;
+  background: var(--panel-3);
+  overflow: hidden;
+}
+
+.meter .fill { height: 100%; border-radius: 3px; background: var(--team); transition: width 0.45s cubic-bezier(0.2, 0.7, 0.3, 1); }
+
+.meter .avg {
+  position: absolute;
+  top: -2px;
+  width: 2px; height: 10px;
+  background: var(--bone);
+  opacity: 0.85;
+}
+
+// game log: one bar per game played, tallest = that player's best night
+.gamelog { display: flex; align-items: flex-end; gap: 2px; height: 62px; }
+
+.gamelog .g {
+  flex: 1 1 0;
+  min-width: 2px;
+  border-radius: 1px 1px 0 0;
+  background: var(--team);
+  opacity: 0.85;
+  transition: opacity 0.15s;
+}
+
+.gamelog .g.lose { background: var(--mute-2); opacity: 0.45; }
+.gamelog .g:hover { opacity: 1; }
+
+.gamelog-key {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.35rem;
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mute-2);
+}
+
+.dos-hint {
+  padding: 0.7rem 1.1rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mute-2);
+}
+
+// ---------------------------------------------------------------------------
+// 3. Leaderboards
+// ---------------------------------------------------------------------------
+.lead-controls { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; align-items: center; margin-bottom: 1.6rem; }
+
+.tabs { display: flex; flex-wrap: wrap; gap: 1.35rem; }
+
+.tabs button {
+  padding: 0 0 0.35rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--mute-2);
+  font-family: var(--display);
+  font-size: 1.02rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.tabs button:hover { color: var(--bone); }
+.tabs button.on { color: var(--bone); border-bottom-color: var(--orange); }
+
+// Multi-column rather than grid: it fills 1–5 down the left and 6–10 down the
+// right, whereas a grid would run 1–2 across and make the ranking read wrong.
+#board { columns: 2 clamp(330px, 30vw, 470px); column-gap: clamp(2rem, 5vw, 4rem); }
+
+.lrow {
+  display: grid;
+  grid-template-columns: 1.9rem 46px minmax(0, 1fr);
+  gap: 0.7rem;
+  align-items: center;
+  padding: 0.42rem 0;
+  border-bottom: 1px solid var(--line-soft);
+  break-inside: avoid;
+}
+
+.lrow .rk {
+  font-family: var(--display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-align: right;
+  color: var(--mute-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.lrow:first-child .rk { color: var(--orange); }
+
+.lrow .av {
+  width: 46px; height: 46px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: top center;
+  background: var(--panel-3);
+  border: 1px solid var(--line);
+}
+
+// these are spans inside a grid item, so they need blockifying by hand
+.lrow .bar-wrap { display: block; min-width: 0; }
+
+.lrow .lbl {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-bottom: 0.2rem;
+}
+
+.lrow .nm {
+  font-family: var(--display);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--bone);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lrow .nm .tm { margin-left: 0.4rem; color: var(--mute-2); font-size: 0.76rem; letter-spacing: 0.1em; }
+
+.lrow .vl {
+  flex: none;
+  font-family: var(--display);
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--bone);
+  font-variant-numeric: tabular-nums;
+}
+
+.lrow .track { display: block; height: 7px; border-radius: 4px; background: var(--panel-2); overflow: hidden; }
+
+.lrow .fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 4px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--team) 55%, #000), var(--team));
+  transition: width 0.7s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+#board .lrow, #career-board .lrow.live { cursor: pointer; }
+#board .lrow:hover .nm, #career-board .lrow.live:hover .nm { color: var(--orange-hi); }
+
+// still playing this season, so the total is still moving
+#career-board .lrow.live .nm { color: var(--orange); }
+
+.av-initials {
+  display: grid;
+  place-items: center;
+  font-family: var(--display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--mute);
+}
+
+#career-board { columns: 2 clamp(330px, 30vw, 470px); column-gap: clamp(2rem, 5vw, 4rem); }
+
+// ---------------------------------------------------------------------------
+// 4. Race
+// ---------------------------------------------------------------------------
+.race-wrap { position: relative; }
+
+#race { display: block; width: 100%; height: auto; }
+
+#race .grid { stroke: var(--line-soft); stroke-width: 1; }
+#race .axis { fill: var(--mute-2); font-family: var(--display); font-size: 11px; letter-spacing: 0.12em; }
+#race .pack { fill: none; stroke: #333a45; stroke-width: 1; opacity: 0.55; }
+#race .lead { fill: none; stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
+#race .lead-label { font-family: var(--display); font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+#race .hot { stroke-width: 3.4; }
+
+#race path.lead { cursor: pointer; }
+
+// ---------------------------------------------------------------------------
+// 5. Standings
+// ---------------------------------------------------------------------------
+#standings { display: grid; grid-template-columns: repeat(auto-fill, minmax(272px, 1fr)); gap: 0.7rem; }
+
+.tcard {
+  display: block;
+  width: 100%;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--team);
+  border-radius: 3px;
+  background: linear-gradient(100deg, color-mix(in srgb, var(--team) 12%, transparent), transparent 60%), var(--panel);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.16s, border-color 0.16s;
+}
+
+.tcard:hover { transform: translateX(3px); border-color: var(--team); }
+
+.tcard .top { display: flex; align-items: center; gap: 0.6rem; min-height: 34px; }
+.tcard .top img { width: 30px; height: 30px; object-fit: contain; }
+
+// wraps rather than truncates: "Golden State Valkyries" is a name, not a label
+.tcard .nm {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--display);
+  font-size: 1.02rem;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bone);
+}
+
+.tcard .rec {
+  font-family: var(--display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--bone);
+  font-variant-numeric: tabular-nums;
+}
+
+.tcard .line2 {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.35rem 0.6rem;
+  margin-top: 0.55rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mute-2);
+}
+
+.form { display: flex; gap: 2px; }
+.form i { width: 9px; height: 9px; border-radius: 1px; background: var(--loss); opacity: 0.75; }
+.form i.w { background: var(--win); }
+
+// ---------------------------------------------------------------------------
+// 6. Decoder
+// ---------------------------------------------------------------------------
+#decoder-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr)); gap: 0.8rem; }
+
+.term {
+  padding: 1.1rem 1.2rem 1.2rem;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--panel);
+}
+
+.term h3 {
+  margin: 0 0 0.5rem;
+  font-family: var(--display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--orange);
+}
+
+.term p { margin: 0; color: var(--mute); font-size: 0.93rem; line-height: 1.5; }
+
+.term .eg {
+  margin-top: 0.8rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.86rem;
+  color: var(--bone);
+}
+
+.term .eg::before {
+  content: "For instance";
+  display: block;
+  margin-bottom: 0.2rem;
+  font-family: var(--display);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--mute-2);
+}
+
+// ---------------------------------------------------------------------------
+// 7. Fine print
+// ---------------------------------------------------------------------------
+#fineprint { padding-bottom: 5rem; }
+
+#fineprint details {
+  max-width: 82ch;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--panel);
+}
+
+#fineprint summary {
+  padding: 0.9rem 1.2rem;
+  cursor: pointer;
+  font-family: var(--display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--bone);
+  list-style: none;
+}
+
+#fineprint summary::-webkit-details-marker { display: none; }
+#fineprint summary::before { content: "＋ "; color: var(--orange); }
+#fineprint details[open] summary::before { content: "－ "; }
+
+.method-body {
+  padding: 0 1.4rem 1.6rem;
+  border-top: 1px solid var(--line);
+  color: var(--mute);
+  font-size: 0.94rem;
+  line-height: 1.65;
+}
+
+.method-body h2, .method-body h3, .method-body .h2, .method-body .h3 {
+  margin: 1.6rem 0 0.5rem;
+  font-family: var(--display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--bone);
+}
+
+.method-body table { width: auto; margin: 0.8rem 0; border-collapse: collapse; }
+.method-body th, .method-body td { padding: 0.3rem 1rem 0.3rem 0; border-bottom: 1px solid var(--line); text-align: left; }
+.method-body blockquote { margin: 1rem 0; padding-left: 1rem; border-left: 2px solid var(--orange); }
+// Quarto styles bare <code> for a light page, which lands as a bright chip on
+// this one. The id raises specificity enough to win without !important.
+#fineprint code,
+#fineprint code:not(.sourceCode) {
+  padding: 0.05em 0.35em;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--tan);
+  font-size: 0.9em;
+}
+.method-body a { color: var(--orange); }
+
+.colophon {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.4rem;
+  margin-top: 2rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--line-soft);
+  font-family: var(--display);
+  font-size: 0.78rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--mute-2);
+}
+
+.colophon a { color: var(--mute); text-decoration: none; border-bottom: 1px solid var(--line); }
+.colophon a:hover { color: var(--orange); }
+
+// ---------------------------------------------------------------------------
+// Shared: reveal-on-scroll
+// ---------------------------------------------------------------------------
+.reveal { opacity: 0; transform: translateY(14px); transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.2, 0.7, 0.3, 1); }
+.reveal.in { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
+  html { scroll-behavior: auto; }
+}
+
+// tooltip shared by the race chart and the game log
+#tip {
+  position: fixed;
+  z-index: 70;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--panel-3);
+  color: var(--bone);
+  font-family: var(--display);
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+#tip.on { opacity: 1; }
+#tip .t2 { display: block; color: var(--mute); font-size: 0.75rem; }

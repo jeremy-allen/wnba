@@ -11,7 +11,8 @@ any completed game the mirror is missing and merges it in. It then asserts full
 season coverage and non-NA keys before writing the cache, so a broken fetch
 fails loudly instead of quietly caching a hollow file.
 
-The navbar carries two dates, and they answer different questions:
+The page carries two dates — at the top, and again in the colophon — and they
+answer different questions:
 
 - **Data through** — the most recent game in the data
 - **Rendered** — when the page was last built
@@ -24,9 +25,21 @@ Rendering does not fetch anything.
 > zero-length vectors that get padded to NA. The result looks like a complete
 > dataset — right row count, right date range — with no data in it.
 
+## What each chapter covers
+
+*Who's who*, *The pecking order*, *The race*, *Fifteen teams* and *Decoder* are
+all **this season only**. *The record book* is the one exception: it ranks
+career totals back to 2004, and marks the players still adding to them.
+
+The league began play in 1997, but these files begin in **2004**. A career
+already under way by then is cut off at that line: Tamika Catchings played from
+2002, and only 2004 onward is counted here. Rows for players who were on court
+in 2004 carry a dagger — some of them, Diana Taurasi among them, were rookies
+that year and lose nothing; for the rest the total is a floor, not a career.
+
 ## Which games count
 
-Every figure on this dashboard uses **regular-season games only**
+Every figure on this page uses **regular-season games only**
 (`type_id == 1`).
 
 | Excluded | `type_id` |
@@ -41,7 +54,7 @@ had large ESPN ids — until ESPN began issuing six-digit ids to new franchises
 too, and it started silently deleting Golden State, Toronto and Portland.
 Excluding by game type is what was always meant.
 
-**Playoff performances therefore appear nowhere**, career totals included.
+**Playoff performances therefore appear nowhere**, the record book included.
 
 ## What counts as a game played
 
@@ -61,7 +74,7 @@ minutes, not one is blank across all thirteen stat columns.
 This is the rule that matters most, and the easiest to get wrong. Counting
 roster appearances rather than games played pushes every per-game average
 below ESPN's — Caitlin Clark, who had missed three games, read 19.3 points per
-game instead of 21.5, which was enough to drop her out of the comparison table
+game instead of 21.5, which was enough to drop her out of the top ten
 altogether.
 
 ## Points and per-game averages
@@ -69,16 +82,27 @@ altogether.
 - **Totals** — the sum of `points` across counted games.
 - **Per game** — total points ÷ games played, using the same definition of
   "played" as above. Games missed never enter the denominator.
-- Sparklines under *Per Season* and *Per Game* are the same numbers, one bar
-  per season or per game, on a scale shared across all players in the table.
+- Each bar in a dossier's game log is one game actually played, on that
+  player's own scale, so the tallest bar is her best night rather than the
+  league's.
+
+## The ten-game qualifier
+
+Ranks shown in a player's dossier, and the *per game* view of the
+leaderboards, are taken among players with **at least ten games**. Season
+totals and the record book have no qualifier — everyone is in.
+
+The threshold exists because a per-game average over two or three games is not
+a measurement of anything. It is also why the wall, when sorted by a per-game
+figure, puts the players who have met it first.
 
 ## Known differences from ESPN
 
-- **No minimum-games qualifier.** ESPN requires a minimum before ranking a
-  player on a per-game leaderboard; this dashboard does not. Kelsey Plum's
-  23.6 points per game over 13 games ranks third here and is omitted there.
-  The stat leaderboards rank by season totals, so they are unaffected.
-- **The shooting-efficiency scatter applies its own floor** of 50 field-goal
-  attempts, to keep small samples from dominating the percentage axis.
-- **Playoffs are excluded**, so career totals here run below any source that
-  includes postseason play.
+- **A different qualifier.** ESPN sets its own minimum before ranking a player
+  on a per-game leaderboard, and it is not ten games. Kelsey Plum's 23.6
+  points per game over 13 games ranks third here and is omitted there.
+- **Playoffs are excluded**, so the record book's career totals run below any
+  source that includes postseason play.
+- **True shooting percentage** is `points ÷ (2 × (FGA + 0.44 × FTA))`, the
+  standard formula. The 0.44 is an estimate of how many free throws end a
+  possession, not an exact count.

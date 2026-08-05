@@ -1,1392 +1,742 @@
---- 
-title: "Meet the WNBA"
+---
+pagetitle: "Meet the WNBA"
+description: "A season of WNBA basketball, one player at a time."
 format:
-  dashboard:
-    scrolling: true
+  html:
+    theme: courtside.scss
+    page-layout: custom
+    toc: false
+    anchor-sections: false
     embed-resources: true
-theme:
-  - united
-  - styles.scss
+    link-external-newwindow: true
+knitr:
+  opts_chunk:
+    echo: false
+    warning: false
+    message: false
 ---
 
-
 ```{r packages}
-library(sparkline)
-library(htmltools)
 library(dplyr)
 library(tidyr)
-library(ggplot2)
-library(lubridate)
-library(stringr)
-library(wehoop)
-library(ggrepel)
-library(reactable)
 library(purrr)
-library(plotly)
-library(crosstalk)
+library(stringr)
+library(lubridate)
+library(jsonlite)
+library(wehoop)
 # required by wehoop: pre-2024 season .rds files store their columns as arrow
 # ALTREP vectors, which readRDS silently returns as length-zero vectors (and
 # rbindlist then pads to NA) unless arrow is loaded
 library(arrow)
 ```
 
-
 ```{r data}
 this_year <- as.integer(year(now()))
+seasons <- 2004:this_year
 
-seasons <- c(2004:as.integer(this_year))
-
-# Load the configuration
 config <- config::get()
 
-# get data based on the configuration
-
 if (config$data_source == "local") {
-    dat <- readRDS("dat.rds")
-    sched <- readRDS("sched.rds")
+  dat <- readRDS("dat.rds")
+  sched <- readRDS("sched.rds")
 }
-  
+
 if (config$data_source == "wehoop") {
-    dat <- load_wnba_player_box(seasons = seasons)
-    sched <- wehoop::load_wnba_schedule(seasons = seasons)
+  dat <- load_wnba_player_box(seasons = seasons)
+  sched <- load_wnba_schedule(seasons = seasons)
 }
 
-sched_games <- sched |> 
-  select(game_id, game_date, season_type, type_id, type_abbreviation,
-  home_display_name, home_score, away_display_name, away_score, attendance) |> 
-    mutate(attendance = as.integer(attendance))
+game_types <- sched |> select(game_id, type_id)
 
-# game types
-game_types <- sched_games |> 
-  select(game_id, type_id, type_abbreviation)
-
-# reguarl season games excluding CC and Allstar games
-rs_game_ids <- sched_games |> 
-  select(game_id, type_id) |> 
-  filter(type_id == 1)
-
-# postseason games
-ps_games_ids <- sched_games |> 
-  select(game_id, type_id) |> 
-  filter(type_id %in% c(14, 16, 17))
-
-athletes <- dat |>
-  select(athlete_id, athlete_display_name)
-
-# Drop All-Star exhibition rosters, which are not real teams. This used to be
-# `filter(team_id < 90)`, back when every franchise had a two-digit id and only
-# the exhibition rosters did not. ESPN now issues six-digit ids to new
-# franchises too, so that test also removed Golden State, Toronto and Portland.
-# Exclude the exhibitions by game type instead, which is what was always meant.
+# The two filters below are the load-bearing ones; METHODOLOGY.md explains why.
+# type_id != 4 drops All-Star exhibitions, whose rosters are not real teams.
+# The did_not_play / is.na(points) pair keeps "one row = one game actually
+# played" true, which every per-game average on this page depends on.
 dat <- dat |>
   left_join(game_types, by = "game_id") |>
   filter(type_id != 4) |>
-  # Drop players who dressed but did not play. ESPN carries a row per rostered
-  # player per game; the inactive ones have no minutes and no stats, but they
-  # still inflate every n_distinct(game_id) used as a games-played denominator.
-  # That is what put this dashboard's per-game averages under ESPN's -- Caitlin
-  # Clark sat 3 games, which read as 19.3 ppg here against ESPN's 21.5.
-  #
-  # The `did_not_play` flag only became reliable in 2013. Before that, 10-22%
-  # of rows per season are inactive players it never marked; they show up as a
-  # row with no minutes and every stat column NA. `!is.na(points)` catches
-  # exactly those 7,654 rows and nothing else -- of 102,076 rows that do carry
-  # minutes, not one is blank across all thirteen stat columns.
-  #
-  # Together these keep "one row = one game actually played" true downstream.
   filter(!(did_not_play %in% TRUE), !is.na(points))
 
-games <- dat |>
-  filter(season == this_year) |>
-  summarise(
-    team_1 = first(team_display_name),
-    team_2 = first(opponent_team_display_name),
-    .by = c(game_id, game_date)
-  ) |> 
-    arrange(desc(game_date))
+# regular season only, current year — the whole page except the rookie flag
+now_dat <- dat |>
+  filter(season == this_year, type_id == 1, !is.na(athlete_display_name))
 
-# max number of games this year for any team
-num_games <-dat |>
-  filter(
-    season == this_year,
-    type_id == 1
-    ) |>
-  select(team_display_name, game_id, game_date) |>
-  unique() |> 
-  arrange(team_display_name, desc(game_date)) |> 
-  count(team_display_name, sort = TRUE) |> 
-  head(1) |>
-  pull(n)
-
+MIN_GAMES <- 10L
 ```
 
-```{r freshness}
-#| output: asis
-
-# The dashboard is rendered and published by hand, so it carries no other
-# signal of how current it is. Report both dates: the render date alone would
-# imply the data is as fresh as the render, which it is not.
+```{r helpers}
+# ESPN's brand colours are chosen for white backgrounds, so several of them
+# (Dallas navy, Indiana navy, Seattle green) disappear on this page. Lift value
+# and saturation to a floor so every franchise reads as itself against the ink.
+accent <- function(hex) {
+  hex <- ifelse(is.na(hex) | hex == "", "f57b20", hex)
+  map_chr(hex, function(h) {
+    rgb <- col2rgb(paste0("#", h))
+    hsv <- rgb2hsv(rgb)
+    v <- max(hsv[3, 1], 0.62)
+    s <- if (hsv[2, 1] < 0.06) 0 else max(hsv[2, 1], 0.42)
+    hsv(hsv[1, 1], s, v)
+  })
+}
 
 fmt_date <- function(d) {
   d <- as.Date(d)
   paste0(format(d, "%b"), " ", as.integer(format(d, "%d")), ", ", format(d, "%Y"))
 }
 
-freshness_stamp <- paste0(
-  "Data through ", fmt_date(max(dat$game_date, na.rm = TRUE)),
-  "  ·  Rendered ", fmt_date(Sys.Date())
-)
-
-# The navbar is built by Quarto after this chunk runs, so append to it on load.
-# The tab list carries Bootstrap's `me-auto`, which right-aligns any sibling
-# placed after it.
-cat(sprintf(
-  '<script>
-document.addEventListener("DOMContentLoaded", function () {
-  var nav = document.querySelector("#dashboard-collapse");
-  if (!nav) return;
-  var stamp = document.createElement("span");
-  stamp.className = "navbar-stamp";
-  stamp.textContent = "%s";
-  nav.appendChild(stamp);
-});
-</script>',
-  freshness_stamp
-))
-```
-
-```{r funcs1}
-post_season_ids <- c(14, 16, 17)
-
-player_stats <- function(
-  data, season_part = c("regular", "post"), my_season = NULL
-  ) {
-  
-  # stop if no type_id column
-  stopifnot("type_id" %in% names(data))
-
-  season_part <- match.arg(season_part)
-
-  my_type_id <- as.integer(1)
-
-  if (season_part == "post") {
-    my_type_id <- post_season_ids
-  }
-
-  result <- data |> 
-    filter(
-      !is.na(athlete_display_name),
-      type_id %in% my_type_id
-      )
-
-  if (!is.null(my_season)) {
-    result <- result |> 
-      filter(season == my_season)
-  }
-  
-  types <- result$type_id |> unique()
-
-  result <- result |>
-    replace_na(list(points = 0)) |>
-    summarise(
-      position = paste(
-        unique(athlete_position_name),
-        collapse = ", "
-      ),
-      total_games = if_else(
-        nchar(n_distinct(game_id, na.rm = TRUE)) == 1,
-        as.integer(paste0("0", n_distinct(game_id, na.rm = TRUE))),
-        as.integer((n_distinct(game_id, na.rm = TRUE)))
-      ),
-      total_seasons = if_else(
-        !is.null(my_season),
-        1,
-        as.integer(n_distinct(season, na.rm = TRUE))
-      ),
-      seasons = if_else(
-        n_distinct(season, na.rm = TRUE) != 1,
-        paste(range(season, na.rm = TRUE), collapse = "-"),
-        as.character(range(season, na.rm = TRUE), collapse = "-")[[1]]
-      ),
-      latest_team = last(team_display_name),
-      total_points = sum(points, na.rm = TRUE),
-      ppg = list(points), # list for sparkline plots in table rows
-      goals_made = sum(field_goals_made, na.rm = TRUE),
-      threes_made = sum(three_point_field_goals_made, na.rm = TRUE),
-      frees_made = sum(free_throws_made, na.rm = TRUE),
-      total_assists = sum(assists, na.rm = TRUE),
-      total_rebounds = sum(rebounds, na.rm = TRUE),
-      total_steals = sum(steals, na.rm = TRUE),
-      total_blocks = sum(blocks, na.rm = TRUE),
-      total_turnovers = sum(turnovers, na.rm = TRUE),
-      total_fouls = sum(fouls, na.rm = TRUE),
-      total_ejections = sum(ejected, na.rm = TRUE),
-      .by = athlete_display_name
-    ) |>
-    rename(
-      athlete = athlete_display_name
-    ) |>
-    arrange(desc(total_points))
-
-  if (!is.null(my_season)) {
-    result |>
-      select(-total_seasons)
-  } else {
-    result
-  }
+short_date <- function(d) {
+  d <- as.Date(d)
+  paste0(format(d, "%b"), " ", as.integer(format(d, "%d")))
 }
 
-# player points per season over entire career
-player_pps <- function(data, my_type_id = 1) {
+# rank within the qualified pool only, so a one-game cameo cannot lead the
+# league in points per game
+rank_of <- function(x, keep) {
+  r <- rep(NA_integer_, length(x))
+  r[keep] <- rank(-x[keep], ties.method = "min")
+  r
+}
 
-  data |>
-    filter(type_id == my_type_id) |>
-    replace_na(list(points = 0)) |>
-    summarise(
-      points = as.integer(sum(points, na.rm = TRUE)),
-      .by = c(athlete_display_name, season)
-    ) |>
-    arrange(athlete_display_name, season)
+pct <- function(made, att) if_else(att > 0, 100 * made / att, NA_real_)
+
+# 1st, 2nd, 3rd, 4th … 11th, 12th, 13th
+ord_en <- function(n) {
+  suffix <- c("th", "st", "nd", "rd", rep("th", 6))
+  paste0(n, if_else(n %% 100 %in% 11:13, "th", suffix[(n %% 10) + 1]))
+}
+
+# ESPN serves headshots at 350px and crests at 500px — 310 KB and 35 KB each,
+# for pictures this page draws at 132px and 30px. Its own combiner endpoint
+# resizes on the CDN, which takes the wall from roughly 70 MB of portraits to
+# 9 MB and the crests, which pandoc inlines into the file, from 1 MB to 90 KB.
+espn_img <- function(url, w, h = w) {
+  path <- str_replace(url, "^https?://[a-z0-9.]+", "")
+  if_else(
+    is.na(url), NA_character_,
+    paste0("https://a.espncdn.com/combiner/i?img=", path, "&w=", w, "&h=", h)
+  )
+}
+
+# most common non-missing value, or NA when a player has none recorded
+mode_chr <- function(x) {
+  x <- x[!is.na(x)]
+  if (!length(x)) return(NA_character_)
+  names(sort(table(x), decreasing = TRUE))[1]
 }
 ```
 
-```{r funcs2}
-player_doubles <- function(data, my_type_id = 1, my_season = NULL) {
-  dat <- data |>
-    filter(type_id == my_type_id)
+```{r players}
+rookie_year <- dat |>
+  summarise(first_season = min(season, na.rm = TRUE), .by = athlete_display_name)
 
-  if (!is.null(my_season)) {
-    dat <- dat %>%
-      filter(season == my_season)
-  }
-
-  dat |>
-    select(
-      athlete = athlete_display_name,
-      game_id,
-      points,
-      rebounds,
-      assists,
-      steals,
-      blocks
-    ) |>
-    mutate(game_id = as.character(game_id)) |>
-    arrange(game_id) |>
-    mutate(
-      across(
-        points:blocks,
-        \(x) if_else(is.na(x) | x < 10, FALSE, TRUE)
-      )
-    ) |>
-    mutate(
-      doubles = as.integer(
-        rowSums(
-          pick(where(
-            ~ is.logical(.x)
-          ))
-        )
-      )
-    ) |>
-    mutate(
-      doubles_type = case_when(
-        doubles == 2 ~ "double_double",
-        doubles == 3 ~ "triple_double",
-        doubles == 4 ~ "quadruple_double",
-        doubles == 5 ~ "quintuple_double",
-        .default = "other"
-      )
-    ) |>
-    select(game_id, athlete, doubles_type) |>
-    count(athlete, doubles_type) |>
-    pivot_wider(
-      names_from = doubles_type,
-      values_from = n
-    ) |>
-    replace_na(
-      list(double_double = 0, triple_double = 0)
-    ) |>
-    mutate(
-      double_double = if_else(
-        triple_double > 0, double_double + triple_double, double_double
-      )
-    ) |>
-    select(athlete, triple_double, double_double)
-}
-```
-
-```{r funcs3}
-
-stat <- function(data, col, ...) {
-  if (n_distinct(data$seasons) > 1) {
-    data |>
-      select(athlete, {{ col }}, total_seasons, seasons) |>
-      arrange(desc(.data[[col]])) |>
-      slice(1:150) |>
-      mutate(rank = row_number()) |>
-      select(rank, athlete, {{ col }}, total_seasons, seasons)
-  } else if (n_distinct(data$seasons) == 1) {
-    data |>
-      select(athlete, {{ col }}, seasons) |>
-      arrange(desc(.data[[col]])) |>
-      slice(1:150) |>
-      mutate(rank = row_number()) |>
-      select(rank, athlete, {{ col }}, seasons)
-  }
-}
-```
-
-```{r dataprep}
-
-pps <- dat |>
-  player_pps() |>
-  arrange(athlete_display_name, season) |>
+players <- now_dat |>
   summarise(
-    pps = list(points),
-    .by = athlete_display_name
-  )
-
-pdat <- player_stats(data = dat, season_part = "regular")
-
-player_seasons <- pdat |>
-  select(athlete, total_games, total_seasons, seasons) |> 
-  mutate(
-    across(
-      where(is.double),
-      as.integer
-    )
-  )
-
-doubles <- dat |>
-  player_doubles()
-
-main_stats <- pdat |>
-  select(
-    athlete,
-    total_points,
-    # total_assists,
-    # total_rebounds,
-    # total_steals,
-    # total_blocks,
-    position,
-    latest_team
-  )
-
-doubles <- doubles |>
-  left_join(main_stats, by = join_by(athlete)) |>
-  left_join(pps, by = join_by(athlete == athlete_display_name)) |>
-  left_join(
-    player_seasons,
-    by = join_by(athlete)
-  ) |>
-  mutate(rookie = if_else(seasons == year(now()), "rookie", ""))  |> 
-  arrange(desc(total_points)) |>
-  select(athlete, rookie, triple_double, double_double, total_points, pps, everything())
-
-doubles <- SharedData$new(doubles, group = "experience", key = ~athlete)
-
-```
-
-```{r data24prep}
-pdat24 <- player_stats(data = dat, season_part = "regular", my_season = this_year)
-doubles24 <- player_doubles(data = dat, my_season = this_year)
-
-main_stats24 <- pdat24 |>
-  select(
-    athlete,
-    total_points,
-    ppg,
-    # total_assists,
-    # total_rebounds,
-    # total_steals,
-    # total_blocks,
-    position,
-    latest_team
-  )
-
-doubles24 <- doubles24 |>
-  left_join(main_stats24, by = join_by(athlete)) |>
-  left_join(
-    pdat |> select(athlete, seasons_played = seasons),
-    by = join_by(athlete)
-  ) |>
-  mutate(rookie = if_else(seasons_played == year(now()), "rookie", ""))  |> 
-  arrange(desc(total_points)) |> 
-  select(athlete, rookie, everything())
-
-doubles24 <- SharedData$new(doubles24, group = "experience", key = ~athlete)
-```
-
-```{r comparedata}
-# per-game and percentage stats for the player comparison table;
-# not a SharedData - selection drives column visibility via the JS below
-compare_raw <- dat |>
-  filter(
-    season == this_year,
-    type_id == 1,
-    !is.na(athlete_display_name)
-  ) |>
-  summarise(
-    headshot = first(athlete_headshot_href[!is.na(athlete_headshot_href)]),
-    # nickname rather than the full display name: it has to read under a 60px
-    # photo, where "Golden State Valkyries" wraps to three lines
-    team = team_name[which.max(game_date)],
-    games = n_distinct(game_id, na.rm = TRUE),
-    total_points = sum(points, na.rm = TRUE),
-    ppg = total_points / games,
-    apg = sum(assists, na.rm = TRUE) / games,
-    rpg = sum(rebounds, na.rm = TRUE) / games,
-    spg = sum(steals, na.rm = TRUE) / games,
-    bpg = sum(blocks, na.rm = TRUE) / games,
-    topg = sum(turnovers, na.rm = TRUE) / games,
-    fg_pct = 100 * sum(field_goals_made, na.rm = TRUE) /
-      sum(field_goals_attempted, na.rm = TRUE),
-    tp_pct = 100 * sum(three_point_field_goals_made, na.rm = TRUE) /
-      sum(three_point_field_goals_attempted, na.rm = TRUE),
-    ft_pct = 100 * sum(free_throws_made, na.rm = TRUE) /
-      sum(free_throws_attempted, na.rm = TRUE),
-    fta = sum(free_throws_attempted, na.rm = TRUE),
-    .by = athlete_display_name
-  )
-
-fmt1 <- function(x) if_else(is.finite(x), sprintf("%.1f", x), "—")
-fmt_pct <- function(x) if_else(is.finite(x), sprintf("%.1f%%", x), "—")
-
-photo_cell <- function(url, team) {
-  portrait <- if_else(
-    is.na(url),
-    '<div style="width:60px;height:60px;border-radius:50%;background:#efe3c6;margin:0 auto;"></div>',
-    paste0(
-      '<img src="', url,
-      '" style="width:60px;height:60px;border-radius:50%;object-fit:cover;background:#ffffff;" loading="lazy">'
-    )
-  )
-
-  paste0(
-    '<div class="compare-photo">',
-    portrait,
-    '<div class="compare-team">', coalesce(team, "&mdash;"), '</div>',
-    "</div>"
-  )
-}
-
-# column order is fixed at render time, so arranging by ppg here keeps any
-# selection of columns sorted left-to-right by descending points per game
-compare_wide <- compare_raw |>
-  arrange(desc(ppg)) |>
-  transmute(
-    athlete = athlete_display_name,
-    Photo = photo_cell(headshot, team),
-    `Points / Game` = fmt1(ppg),
-    `Assists / Game` = fmt1(apg),
-    `Rebounds / Game` = fmt1(rpg),
-    `Steals / Game` = fmt1(spg),
-    `Blocks / Game` = fmt1(bpg),
-    `Turnovers / Game` = fmt1(topg),
-    `FG%` = fmt_pct(fg_pct),
-    `3P%` = fmt_pct(tp_pct),
-    `FT%` = fmt_pct(ft_pct),
-    `FT Attempted` = as.character(fta)
-  ) |>
-  pivot_longer(-athlete, names_to = "stat", values_to = "value") |>
-  # the headshots need no row label; "Photo" only stated the obvious. The name
-  # has to survive as a column above so pivot_longer has something to key on.
-  mutate(stat = if_else(stat == "Photo", "", stat)) |>
-  pivot_wider(names_from = athlete, values_from = value)
-
-compare_players <- setdiff(names(compare_wide), "stat")
-
-compare_top10 <- compare_raw |>
-  arrange(desc(total_points)) |>
-  slice_head(n = 10) |>
-  pull(athlete_display_name)
-
-# crosstalk selection keys are athlete names, which are exactly the
-# compare-table column ids, so no key-to-column mapping is needed
-compare_js <- paste0(
-  "(function() {\n",
-  "  var players = ", jsonlite::toJSON(compare_players), ";\n",
-  "  var top10 = ", jsonlite::toJSON(compare_top10), ";\n",
-  "  var clearBtns = [];\n",
-  "  function apply(keys) {\n",
-  "    var shown = (keys && keys.length) ? keys : top10;\n",
-  "    var hidden = players.filter(function(p) { return shown.indexOf(p) === -1; });\n",
-  "    if (window.Reactable) { Reactable.setHiddenColumns('compare-table', hidden); }\n",
-  "  }\n",
-  "  // A selection filters every page, so picking someone who has no season on\n",
-  "  // the page you switch to leaves that page with no row to untick -- e.g.\n",
-  "  // Sue Bird, last season 2022, empties the current-year page completely.\n",
-  "  // The way out therefore has to sit outside the table, in its card header,\n",
-  "  // and on both pages, since either one can be the page left empty.\n",
-  "  function showClear(active) {\n",
-  "    clearBtns.forEach(function(b) { b.hidden = !active; });\n",
-  "  }\n",
-  "  function buildClear(handle) {\n",
-  "    return ['main-table', 'all-time-table'].map(function(id) {\n",
-  "      var tbl = document.getElementById(id);\n",
-  "      var header = tbl && tbl.closest('.card')\n",
-  "        ? tbl.closest('.card').querySelector('.card-header')\n",
-  "        : null;\n",
-  "      if (!header) { return null; }\n",
-  "      var btn = document.createElement('button');\n",
-  "      btn.type = 'button';\n",
-  "      btn.className = 'card-clear';\n",
-  "      btn.textContent = '\\u2715 Clear selection';\n",
-  "      btn.hidden = true;\n",
-  "      btn.addEventListener('click', function() { handle.set(null); });\n",
-  "      header.appendChild(btn);\n",
-  "      return btn;\n",
-  "    }).filter(Boolean);\n",
-  "  }\n",
-  "  window.addEventListener('load', function() {\n",
-  "    var handle = new crosstalk.SelectionHandle('experience');\n",
-  "    clearBtns = buildClear(handle);\n",
-  "    handle.on('change', function(e) {\n",
-  "      // deselecting the last row broadcasts [] , which plotly renders as\n",
-  "      // all-dimmed; plotly restores full opacity only on a strict null\n",
-  "      if (e.value && e.value.length === 0) { handle.set(null); return; }\n",
-  "      apply(e.value);\n",
-  "      showClear(!!(e.value && e.value.length));\n",
-  "    });\n",
-  "    apply(handle.value);\n",
-  "    showClear(!!(handle.value && handle.value.length));\n",
-  "  });\n",
-  "})();"
-)
-```
-
-```{r race-prep}
-# cumulative points by game date for the scoring race chart
-race <- dat |>
-  filter(
-    season == this_year,
-    type_id == 1,
-    !is.na(athlete_display_name)
-  ) |>
-  select(athlete_display_name, game_date, points) |>
-  mutate(game_date = as_date(game_date)) |>
-  arrange(game_date) |>
-  mutate(
-    cum_points = cumsum(replace_na(points, 0)),
-    .by = athlete_display_name
-  ) |>
-  rename(athlete = athlete_display_name) |>
-  SharedData$new(group = "experience", key = ~athlete)
-```
-
-```{r efficiency-prep}
-# true shooting percentage vs shot volume for the efficiency chart;
-# floor of 50 field goal attempts keeps tiny-sample players out
-efficiency <- dat |>
-  filter(
-    season == this_year,
-    type_id == 1,
-    !is.na(athlete_display_name)
-  ) |>
-  summarise(
-    n_games = n_distinct(game_id, na.rm = TRUE),
+    shot = first(na.omit(athlete_headshot_href)),
+    jersey = first(na.omit(athlete_jersey)),
+    pos = mode_chr(athlete_position_abbreviation),
+    team = team_abbreviation[which.max(game_date)],
+    teamName = team_display_name[which.max(game_date)],
+    color = team_color[which.max(game_date)],
+    logo = team_logo[which.max(game_date)],
+    g = n_distinct(game_id),
+    min = sum(minutes, na.rm = TRUE),
+    pts = sum(points, na.rm = TRUE),
+    reb = sum(rebounds, na.rm = TRUE),
+    ast = sum(assists, na.rm = TRUE),
+    stl = sum(steals, na.rm = TRUE),
+    blk = sum(blocks, na.rm = TRUE),
+    tov = sum(turnovers, na.rm = TRUE),
+    fgm = sum(field_goals_made, na.rm = TRUE),
     fga = sum(field_goals_attempted, na.rm = TRUE),
+    tpm = sum(three_point_field_goals_made, na.rm = TRUE),
+    tpa = sum(three_point_field_goals_attempted, na.rm = TRUE),
+    ftm = sum(free_throws_made, na.rm = TRUE),
     fta = sum(free_throws_attempted, na.rm = TRUE),
-    n_points = sum(points, na.rm = TRUE),
+    # a double-double is two of the five counting stats in double figures on
+    # the same night; a triple-double is three
+    dd = sum(rowSums(cbind(points, rebounds, assists, steals, blocks) >= 10, na.rm = TRUE) >= 2),
+    td = sum(rowSums(cbind(points, rebounds, assists, steals, blocks) >= 10, na.rm = TRUE) >= 3),
     .by = athlete_display_name
   ) |>
-  filter(fga >= 50) |>
+  rename(name = athlete_display_name) |>
+  left_join(rookie_year, by = join_by(name == athlete_display_name)) |>
   mutate(
-    fga_per_game = round(fga / n_games, 1),
-    ts_pct = round(100 * n_points / (2 * (fga + 0.44 * fta)), 1)
-  ) |>
-  rename(athlete = athlete_display_name) |>
-  SharedData$new(group = "experience", key = ~athlete)
-```
-
-```{r experience-prep}
-
-# named to avoid shadowing the `seasons` season-range vector defined above.
-# The type_id filter matters: this plot's y axis reads "Regular Season Games
-# Played", but without it playoff and Commissioner's Cup games were counted
-# too, overstating 235 careers by as much as 58 games.
-experience <- dat |>
-  filter(type_id == 1) |>
-  summarise(
-    n_seasons = n_distinct(season, na.rm = TRUE),
-    n_games = n_distinct(game_id, na.rm = TRUE),
-    .by = c(athlete_display_name)
-  ) |>
-  arrange(n_seasons) |>
-  rename(athlete = athlete_display_name) |>
-  drop_na(athlete)
-
-# longest career in the data, used to size the experience plot x axis
-max_seasons <- max(experience$n_seasons, na.rm = TRUE)
-
-player_experience <- experience |>
-  SharedData$new(group = "experience", key = ~athlete)
-
-points <- dat |> 
-  filter(
-    season == as.integer(year(now())),
-    type_id == 1
-    ) |>
-  summarise(
-    n_games = n_distinct(game_id, na.rm = TRUE),
-    n_points = sum(points, na.rm = TRUE),
-    .by = c(athlete_display_name)
-  ) |> 
-  arrange(desc(n_games)) |> 
-  rename(athlete = athlete_display_name) |> 
-  drop_na(athlete) |> 
-  SharedData$new(group = "experience", key = ~athlete)
-
-```
-
-```{r statsdata}
-# dfs for all time stats
-
-stat_names <- c(
-  "total_games", "total_points", "goals_made", "threes_made",
-  "total_assists", "total_rebounds", "total_steals",
-  "total_blocks", "total_turnovers", "total_fouls"
-)
-
-stat_dfs <- stat_names %>%
-  set_names() %>%
-  map(~ stat(pdat, col = {{ .x }}))
-
-
-# dfs for this_year stats
-
-stat24_dfs <- stat_names %>%
-  set_names() %>%
-  map(~ stat(pdat24, col = {{ .x }}))
-
-# https://rlang.r-lib.org/reference/topic-inject.html#embracing-with-
-```
-
-```{r sizes}
-# max width for columns in reactables
-sm <- 50
-md <- 70
-lg <- 110
-```
-
-```{r tableoptions}
-
-wnba_orange <- "#f57b20"
-wnba_dark_orange <- "#e96500"
-wnba_tan <- "#efe3c6"
-wnba_gray <- "#4c4c4d"
-wnba_black <- "#050707"
-
-court_ratio <- 1/1.88
-
-doubles_theme <- reactableTheme(
-  color = "#FFFFFF",
-  backgroundColor = wnba_orange,
-  borderColor = wnba_tan,
-  highlightColor = wnba_black,
-  inputStyle = list(backgroundColor = wnba_dark_orange),
-  selectStyle = list(backgroundColor = wnba_orange),
-  pageButtonHoverStyle = list(backgroundColor = wnba_black),
-  pageButtonActiveStyle = list(backgroundColor = wnba_black)
-)
-
-compare_theme <- reactableTheme(
-  color = wnba_tan,
-  backgroundColor = wnba_black,
-  borderColor = wnba_gray
-)
-
-stat_theme <- reactableTheme(
-  backgroundColor = wnba_tan,
-  borderColor = wnba_tan,
-  highlightColor = wnba_black,
-  rowHighlightStyle = list(color = wnba_tan),
-  inputStyle = list(backgroundColor = "#FFFFFF"),
-  pageButtonHoverStyle = list(backgroundColor = wnba_black, color = wnba_tan),
-  pageButtonActiveStyle = list(backgroundColor = wnba_black)
-)
-```
-
-# `r this_year`
-
-## Row {height=400px}
-
-### Column
-
-```{r doubles24}
-#| title: Click rows to filter everything
-doubles24 |>
-  reactable(
-    elementId = "main-table",
-    compact = FALSE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    selection = "multiple",
-    onClick = "select",
-    rowStyle = list(cursor = "pointer"),
-    theme = doubles_theme,
-    columns = list(
-      athlete = colDef(name = "Athlete", maxWidth = md, filterable = TRUE),
-      rookie = colDef(name = "Rookie", maxWidth = md, filterable = TRUE),
-      double_double = colDef(name = "Double Dbl", maxWidth = md),
-      triple_double = colDef(name = "Triple Dbl", maxWidth = md),
-      total_points = colDef(name = "Total Points", maxWidth = md),
-      ppg = colDef(
-        name = "Per Game",
-        minWidth = 300,
-        cell = function(values) {
-          sparkline(rev(values), type = "bar", chartRangeMin = 0, chartRangeMax = max(dat$points, na.rm = TRUE), width = 240, barColor = "#ffffff", barWidth = 4, barSpacing = 1, zeroColor = "#999999", nullColor = "#000000")
-        }
-      ),
-      position = colDef(name = "Position", filterable = TRUE),
-      latest_team = colDef(name = "Team", filterable = TRUE),
-      seasons_played = colDef(name = "Seasons Played")
-    )
+    first = word(name, 1),
+    last = word(name, -1),
+    initials = paste0(str_sub(first, 1, 1), str_sub(last, 1, 1)),
+    rook = first_season == this_year,
+    shot = espn_img(shot, 220, 160),
+    logo = espn_img(logo, 64),
+    color = accent(color),
+    mpg = min / g, ppg = pts / g, rpg = reb / g, apg = ast / g,
+    spg = stl / g, bpg = blk / g, tpg = tpm / g,
+    fgp = pct(fgm, fga), tpp = pct(tpm, tpa), ftp = pct(ftm, fta),
+    ts = pct(pts, 2 * (fga + 0.44 * fta))
   )
+
+qual <- players$g >= MIN_GAMES
+
+players <- players |>
+  mutate(
+    rk_ppg = rank_of(ppg, qual), rk_rpg = rank_of(rpg, qual),
+    rk_apg = rank_of(apg, qual), rk_spg = rank_of(spg, qual),
+    rk_bpg = rank_of(bpg, qual)
+  ) |>
+  arrange(desc(pts))
+
+# one bar per game in the dossier's game log
+game_log <- now_dat |>
+  arrange(athlete_display_name, game_date) |>
+  transmute(
+    name = athlete_display_name,
+    d = short_date(game_date),
+    o = opponent_team_abbreviation,
+    p = as.integer(replace_na(points, 0)),
+    w = as.integer(team_winner %in% TRUE)
+  ) |>
+  nest(gl = c(d, o, p, w))
+
+players <- players |>
+  left_join(game_log, by = "name") |>
+  select(
+    name, first, last, initials, jersey, pos, team, teamName, color, logo, shot, rook,
+    g, min, mpg, pts, ppg, reb, rpg, ast, apg, stl, spg, blk, bpg, tov, tpm, tpg,
+    fgm, fga, fgp, tpa, tpp, ftm, fta, ftp, ts, dd, td,
+    starts_with("rk_"), gl
+  ) |>
+  mutate(across(c(mpg, ppg, rpg, apg, spg, bpg, tpg, fgp, tpp, ftp, ts), \(x) round(x, 1)))
 ```
 
-### Column {.tabset}
+```{r teams}
+team_games <- now_dat |>
+  distinct(game_id, game_date, team_abbreviation, team_display_name,
+           team_color, team_logo, team_winner, team_score, opponent_team_score)
 
-```{r compare}
-#| title: Compare
-htmltools::tagList(
-  reactable(
-    compare_wide,
-    elementId = "compare-table",
-    sortable = FALSE,
-    pagination = FALSE,
-    highlight = FALSE,
-    compact = TRUE,
-    theme = compare_theme,
-    defaultColDef = colDef(
-      show = FALSE,
-      html = TRUE,
-      align = "center",
-      vAlign = "center",
-      minWidth = 100
-    ),
-    columns = c(
-      list(
-        stat = colDef(
-          show = TRUE,
-          html = FALSE,
-          name = "",
-          align = "left",
-          sticky = "left",
-          minWidth = lg,
-          style = list(fontWeight = "600")
-        )
-      ),
-      map(set_names(compare_top10), \(x) colDef(show = TRUE))
-    )
-  ),
-  htmltools::div(
-    class = "compare-hint",
-    "Top 10 by total points shown by default — select players in the left table to compare"
-  ),
-  htmltools::tags$script(htmltools::HTML(compare_js))
-)
+teams <- team_games |>
+  arrange(game_date) |>
+  summarise(
+    name = last(team_display_name),
+    color = accent(last(team_color)),
+    logo = espn_img(last(team_logo), 64),
+    w = sum(team_winner %in% TRUE),
+    l = sum(team_winner %in% FALSE),
+    pf = mean(team_score, na.rm = TRUE),
+    pa = mean(opponent_team_score, na.rm = TRUE),
+    form = list(tail(if_else(team_winner %in% TRUE, "w", "l"), 10)),
+    .by = team_abbreviation
+  ) |>
+  rename(abbr = team_abbreviation) |>
+  mutate(pct = w / (w + l)) |>
+  arrange(desc(pct), desc(w))
+
+# most recent finals, for the hero ticker
+recent <- team_games |>
+  left_join(
+    now_dat |> distinct(game_id, team_abbreviation, home_away),
+    by = c("game_id", "team_abbreviation")
+  ) |>
+  select(game_id, game_date, abbr = team_abbreviation, score = team_score,
+         color = team_color, home_away, team_winner) |>
+  arrange(desc(game_date), game_id, home_away) |>
+  mutate(side = tolower(home_away)) |>
+  distinct(game_id, side, .keep_all = TRUE) |>
+  pivot_wider(
+    id_cols = c(game_id, game_date),
+    names_from = side,
+    values_from = c(abbr, score, color, team_winner)
+  ) |>
+  arrange(desc(game_date)) |>
+  head(14)
 ```
 
 ```{r race}
-#| title: Scoring Race
-race_plot <- race |>
-  ggplot(aes(x = game_date, y = cum_points, group = athlete)) +
-  geom_line(
-    color = wnba_orange,
-    linewidth = 0.3,
-    alpha = 0.4
-  ) +
-  labs(
-    title = "Cumulative Points this Regular Season",
-    subtitle = "each line is a player - select players in the tables",
-    x = NULL,
-    y = "Points Scored"
-  ) +
-  theme_light() +
-  theme(
-    legend.position = "none",
-    text = element_text(color = wnba_tan),
-    axis.text = element_text(color = wnba_tan),
-    axis.line = element_blank(),
-    axis.text.x = element_text(size = 8),
-    axis.title = element_text(size = 10),
-    panel.grid = element_blank(),
-    panel.background = element_rect(fill = wnba_black, color = wnba_black),
-    plot.background = element_rect(fill = wnba_black, color = wnba_black),
-    plot.title = element_text(size = 14),
-    plot.margin = unit(c(20, 40, 20, 40), "points")
-  )
+# One line per player: points scored so far, at every date the league played.
+# Values are carried forward between a player's own games so the lines run
+# level rather than dropping to zero on their nights off, and are null before
+# a player's debut so nobody appears to start the season already flat.
+dates <- sort(unique(as_date(now_dat$game_date)))
 
-ggplotly(
-  race_plot,
-  height = 330,
-  tooltip = c("athlete", "game_date", "cum_points")
-) |>
-  highlight(
-    color = wnba_black,
-    opacityDim = 0.6,
-    selected = attrs_selected(line = list(width = 3))
-  )
+# `gd`, not `d`: a column named `d` would partial-match complete()'s own `data`
+# argument, since it sits ahead of the dots.
+race_long <- now_dat |>
+  mutate(gd = as_date(game_date)) |>
+  summarise(p = sum(points, na.rm = TRUE), .by = c(athlete_display_name, gd)) |>
+  complete(athlete_display_name, gd = dates, fill = list(p = 0)) |>
+  arrange(athlete_display_name, gd) |>
+  mutate(cum = cumsum(p), .by = athlete_display_name)
 
+debut <- now_dat |>
+  summarise(debut = min(as_date(game_date)), .by = athlete_display_name)
+
+race_long <- race_long |>
+  left_join(debut, by = "athlete_display_name") |>
+  mutate(cum = if_else(gd < debut, NA_integer_, as.integer(cum)))
+
+top8 <- players$name[1:8]
+
+race_series <- race_long |>
+  arrange(athlete_display_name, gd) |>
+  summarise(v = list(cum), .by = athlete_display_name) |>
+  rename(n = athlete_display_name) |>
+  left_join(players |> select(n = name, c = color, pts), by = "n") |>
+  mutate(top = n %in% top8) |>
+  arrange(pts) |> # leaders drawn last, on top of the pack
+  select(n, c, top, v)
+
+# roughly monthly x-axis ticks
+tick_i <- which(!duplicated(format(dates, "%Y-%m")))
+race_ticks <- tibble(i = tick_i - 1L, l = toupper(format(dates[tick_i], "%b")))
 ```
 
-```{r efficiency}
-#| title: Efficiency
-efficiency_plot <- efficiency |>
-  ggplot(aes(x = fga_per_game, y = ts_pct, group = athlete)) +
-  geom_point(
-    size = 2,
-    color = wnba_orange
-  ) +
-  labs(
-    title = "Shooting Efficiency vs Volume",
-    subtitle = "each dot is a player with 50+ field goal attempts - select players in the tables",
-    x = "Field Goal Attempts per Game",
-    y = "True Shooting %"
-  ) +
-  theme_light() +
-  theme(
-    legend.position = "none",
-    text = element_text(color = wnba_tan),
-    axis.text = element_text(color = wnba_tan),
-    axis.line = element_blank(),
-    axis.text.x = element_text(size = 8),
-    axis.title = element_text(size = 10),
-    panel.grid = element_blank(),
-    panel.background = element_rect(fill = wnba_black, color = wnba_black),
-    plot.background = element_rect(fill = wnba_black, color = wnba_black),
-    plot.title = element_text(size = 14),
-    plot.margin = unit(c(20, 40, 20, 40), "points")
-  )
-
-ggplotly(
-  efficiency_plot,
-  height = 330,
-  tooltip = c("athlete", "fga_per_game", "ts_pct")
-)
-
-```
-
-```{r points}
-#| title: Points this Season
-points_plot <- points |>
-  ggplot(aes(x = n_games, y = n_points, group = athlete)) +
-  geom_point(
-    size = 2,
-    color = wnba_orange
-  )  +
-  labs(
-    title = "Points this Regular Season",
-    subtitle = "each dot is a player - select players in the tables",
-    x = "Regular Season Games Played",
-    y = "Points Scored"
-  ) +
-  scale_x_discrete(
-    limits = factor(c(1:(num_games + 1))),
-    breaks = as.character(c(1:(num_games)))
-  ) +
-  theme_light() +
-  theme(
-    legend.position = "none",
-    text = element_text(color = wnba_tan),
-    axis.text = element_text(color = wnba_tan),
-    axis.line = element_blank(),
-    axis.text.y = element_blank(),
-    axis.ticks.y = element_blank(),
-    axis.text.x = element_text(size = 8, angle = 300, hjust = 0),
-    axis.title = element_text(size = 10),
-    panel.grid = element_blank(),
-    panel.background = element_rect(fill = wnba_black, color = wnba_black),
-    plot.background = element_rect(fill = wnba_black, color = wnba_black),
-    plot.title = element_text(size = 14),
-    plot.margin = unit(c(20, 40, 20, 40), "points"),
-    aspect.ratio = court_ratio
-  )
-
-ggplotly(
-  points_plot,
-  height = 330,
-  tooltip = c("athlete", "n_games", "n_points")
-)
-
-```
-
-## Row {height=300px}
-
-```{r tp24}
-tp24 <- stat24_dfs$total_points |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-tp24 |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    defaultSorted = list(rank = "asc"),
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      seasons = colDef(show = FALSE),
-      total_points = colDef(
-        name = "POINTS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
-```
-
-```{r ta24}
-ta24 <- stat24_dfs$total_assists |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-ta24 |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    defaultSorted = list(rank = "asc"),
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      seasons = colDef(show = FALSE),
-      total_assists = colDef(
-        name = "ASSISTS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
-```
-
-```{r tr24}
-tr24 <-stat24_dfs$total_rebounds |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-tr24 |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    defaultSorted = list(rank = "asc"),
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      seasons = colDef(show = FALSE),
-      total_rebounds = colDef(
-        name = "REBOUNDS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
-```
-
-```{r ts24}
-ts24 <- stat24_dfs$total_steals |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-ts24 |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    defaultSorted = list(rank = "asc"),
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      seasons = colDef(show = FALSE),
-      total_steals = colDef(
-        name = "STEALS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
-```
-
-## Row {height=300px}
-
-```{r tb24}
-tb24 <- stat24_dfs$total_blocks |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-tb24 |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    defaultSorted = list(rank = "asc"),
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      seasons = colDef(show = FALSE),
-      total_blocks = colDef(
-        name = "BLOCKS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
-```
-
-```{r gm24}
-gm24 <- stat24_dfs$goals_made |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-gm24 |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    defaultSorted = list(rank = "asc"),
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      seasons = colDef(show = FALSE),
-      goals_made = colDef(
-        name = "GOALS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
-```
-
-```{r tm24}
-tm24 <- stat24_dfs$threes_made |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-tm24 |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    defaultSorted = list(rank = "asc"),
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      seasons = colDef(show = FALSE),
-      threes_made = colDef(
-        name = "THREES",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
-```
-
-```{r tt24}
-tt24 <- stat24_dfs$total_turnovers |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-tt24 |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    defaultSorted = list(rank = "asc"),
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      seasons = colDef(show = FALSE),
-      total_turnovers = colDef(
-        name = "T-OVERS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
-```
-
-# All Time
-
-## Row {height=400px}
-
-```{r alldoubles}
-#| title: Click rows to filter everything
-doubles |>
-  reactable(
-    elementId = "all-time-table",
-    compact = FALSE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    selection = "multiple",
-    onClick = "select",
-    rowStyle = list(cursor = "pointer"),
-    columns = list(
-      athlete = colDef(name = "Athlete", maxWidth = md, filterable = TRUE),
-      rookie = colDef(name = "Rookie", maxWidth = md, filterable = TRUE),
-      double_double = colDef(name = "Double Dbl", maxWidth = md),
-      triple_double = colDef(name = "Triple Dbl", maxWidth = md),
-      total_points = colDef(name = "Total Points", maxWidth = md),
-      pps = colDef(
-        name = "Per Season",
-        minWidth = 153,
-        maxWidth = 155,
-        cell = function(values) {
-          sparkline(values, type = "bar", width = 153, chartRangeMin = 0, barColor = "#ffffff", barWidth = 4, barSpacing = 1, zeroColor = "#999999", nullColor = "#000000")
-        }
-      ),
-      position = colDef(name = "Position", filterable = TRUE),
-      latest_team = colDef(name = "Team", filterable = TRUE),
-      total_games = colDef(name = "Total Games"),
-      total_seasons = colDef(name = "Total Seasons"),
-      seasons = colDef(name = "Seasons")
+```{r career}
+# Career totals back to 2004, regular season only. The page is otherwise about
+# this season alone, and a newcomer has no way to tell whether 746 points is a
+# lot without something to measure it against.
+career <- dat |>
+  filter(type_id == 1, !is.na(athlete_display_name)) |>
+  arrange(game_date) |>
+  summarise(
+    shot = last(na.omit(athlete_headshot_href)),
+    team = last(team_abbreviation),
+    color = accent(last(team_color)),
+    first_season = min(season), last_season = max(season),
+    n_seasons = n_distinct(season),
+    g = n_distinct(game_id),
+    pts = sum(points, na.rm = TRUE),
+    reb = sum(rebounds, na.rm = TRUE),
+    ast = sum(assists, na.rm = TRUE),
+    stl = sum(steals, na.rm = TRUE),
+    blk = sum(blocks, na.rm = TRUE),
+    tpm = sum(three_point_field_goals_made, na.rm = TRUE),
+    .by = athlete_display_name
+  ) |>
+  rename(name = athlete_display_name) |>
+  mutate(
+    shot = espn_img(shot, 220, 160),
+    active = last_season == this_year,
+    initials = paste0(str_sub(word(name, 1), 1, 1), str_sub(word(name, -1), 1, 1)),
+    span = if_else(
+      first_season == last_season,
+      as.character(first_season),
+      paste0(first_season, "&ndash;", last_season)
     ),
-    theme = doubles_theme
-  )
-```
-
-```{r experience}
-seasons_plot <- player_experience |>
-  ggplot(aes(x = n_seasons, y = n_games, group = athlete)) +
-  geom_point(size = 2, color = wnba_orange)  +
-  labs(
-    title = "Time on the Court",
-    subtitle = "each dot is a player - select players in the tables",
-    x = "Seasons Played",
-    y = "Regular Season Games Played"
-  ) +
-  scale_x_discrete(
-    limits = factor(seq_len(max_seasons)),
-    breaks = as.character(seq_len(max_seasons))
-  ) +
-  theme_light() +
-  theme(
-    legend.position = "none",
-    text = element_text(color = wnba_tan),
-    axis.text = element_text(color = wnba_tan),
-    axis.line = element_blank(),
-    axis.text.y = element_blank(),
-    axis.ticks.y = element_blank(),
-    axis.text.x = element_text(size = 10),
-    axis.title = element_text(size = 10),
-    panel.grid = element_blank(),
-    panel.background = element_rect(fill = wnba_black, color = wnba_black),
-    plot.background = element_rect(fill = wnba_black, color = wnba_black),
-    plot.title = element_text(size = 14),
-    plot.margin = unit(c(20, 40, 20, 40), "points"),
-    aspect.ratio = court_ratio
+    # The league began in 1997 but this data begins in 2004, so anyone whose
+    # first season here is 2004 may well have been playing before it. Their
+    # span and their totals are both cut off, and saying "2004-2016" of a
+    # career that ran 2002-2016 would be a claim the data cannot support.
+    trunc = first_season == min(dat$season)
   )
 
-ggplotly(seasons_plot, tooltip = c("athlete", "n_seasons", "n_games"))
+career_metrics <- c(pts = "Points", reb = "Rebounds", ast = "Assists",
+                    stl = "Steals", blk = "Blocks", tpm = "3-Pointers", g = "Games")
 
+career_boards <- map(
+  set_names(names(career_metrics)),
+  \(k) career |>
+    slice_max(.data[[k]], n = 10, with_ties = FALSE) |>
+    transmute(name, team, color, shot, initials, span, trunc, active, v = .data[[k]])
+)
+
+# does any leaderboard on show actually contain a truncated career?
+career_has_trunc <- any(map_lgl(career_boards, \(b) any(b$trunc)))
 ```
 
-## Row {height=300px}
+```{r payload}
+#| output: asis
 
-```{r tp}
-tp <- stat_dfs$total_points |>
-  SharedData$new(key = ~athlete, group = "experience")
+league_avg <- now_dat |>
+  summarise(
+    fgp = pct(sum(field_goals_made, na.rm = TRUE), sum(field_goals_attempted, na.rm = TRUE)),
+    tpp = pct(sum(three_point_field_goals_made, na.rm = TRUE), sum(three_point_field_goals_attempted, na.rm = TRUE)),
+    ftp = pct(sum(free_throws_made, na.rm = TRUE), sum(free_throws_attempted, na.rm = TRUE))
+  ) |>
+  mutate(across(everything(), \(x) round(x, 1)))
 
-tp |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      total_seasons = colDef(name = "total seasons", maxWidth = md),
-      seasons = colDef(maxWidth = lg),
-      total_points = colDef(
-        name = "POINTS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
+payload <- list(
+  season = this_year,
+  minGames = MIN_GAMES,
+  qualified = sum(qual),
+  opening = players$name[1],
+  avg = as.list(league_avg),
+  players = players,
+  career = career_boards,
+  race = list(
+    dates = format(dates, "%Y-%m-%d"),
+    ticks = race_ticks,
+    max = max(race_long$cum, na.rm = TRUE),
+    series = race_series
+  )
+)
+
+json <- toJSON(payload, dataframe = "rows", auto_unbox = TRUE, na = "null", digits = 4)
+# a literal </script> inside a JSON string would end the tag early; nothing in
+# this data contains one today, but the escape costs nothing
+json <- gsub("</", "<\\\\/", json, fixed = TRUE)
+
+cat('<script id="payload" type="application/json">', json, "</script>\n", sep = "")
+```
+
+```{r page}
+#| output: asis
+
+n_games <- n_distinct(now_dat$game_id)
+n_points <- sum(now_dat$points, na.rm = TRUE)
+data_through <- fmt_date(max(now_dat$game_date, na.rm = TRUE))
+
+h <- function(...) cat(..., "\n", sep = "")
+
+# --- page furniture -------------------------------------------------------
+h('<div id="progress"></div><div id="tip"></div>')
+
+rail <- c(tipoff = "Tip-off", who = "Who's who", leaders = "Leaders",
+          `race-band` = "The race", teams = "Teams", record = "Record book",
+          decoder = "Decoder")
+h('<nav id="rail">', paste0(
+  '<a href="#', names(rail), '"><span class="lbl">', rail, '</span><span class="dot"></span></a>',
+  collapse = ""
+), "</nav>")
+
+# --- 1. tip-off -----------------------------------------------------------
+court <- paste0(
+  '<svg id="court" viewBox="0 0 940 500" preserveAspectRatio="xMidYMid meet" aria-hidden="true">',
+  '<rect class="ln" x="10" y="10" width="920" height="480"/>',
+  '<line class="ln" x1="470" y1="10" x2="470" y2="490"/>',
+  '<circle class="ln" cx="470" cy="250" r="60"/>',
+  '<rect class="ln" x="10" y="170" width="190" height="160"/>',
+  '<rect class="ln" x="740" y="170" width="190" height="160"/>',
+  '<circle class="ln" cx="200" cy="250" r="60"/>',
+  '<circle class="ln" cx="740" cy="250" r="60"/>',
+  '<circle class="ln" cx="62" cy="250" r="9"/>',
+  '<circle class="ln" cx="868" cy="250" r="9"/>',
+  '<path class="ln" d="M 10 30 L 90 30 A 221 221 0 0 1 90 470 L 10 470"/>',
+  '<path class="ln" d="M 930 30 L 850 30 A 221 221 0 0 0 850 470 L 930 470"/>',
+  "</svg>"
+)
+
+figure <- function(v, l) paste0(
+  '<div class="figure"><span class="fv" data-to="', v, '">0</span><span class="fl">', l, "</span></div>"
+)
+
+ticker_item <- function(r) {
+  side <- function(ab, sc, col, won) paste0(
+    '<span class="side', if (won) " won" else "", '" style="--tc:', accent(col), '">',
+    '<i class="swatch"></i><span class="ab">', ab, '</span><span class="sc">', sc, "</span></span>"
+  )
+  paste0(
+    '<div class="final">',
+    side(r$abbr_away, r$score_away, r$color_away, isTRUE(r$team_winner_away)),
+    '<span class="at">at</span>',
+    side(r$abbr_home, r$score_home, r$color_home, isTRUE(r$team_winner_home)),
+    '<span class="day">', toupper(short_date(r$game_date)), "</span></div>"
+  )
+}
+
+finals <- paste0(map_chr(seq_len(nrow(recent)), \(i) ticker_item(recent[i, ])), collapse = "")
+
+h('<section id="tipoff" class="band">', court)
+h('<div class="hero">')
+h('<div class="hero-kicker"><span class="live">', this_year, ' Regular Season</span>',
+  '<span>Data through ', data_through, "</span></div>")
+h('<h1 class="hero-title">Meet<span class="l2">the <span class="ghost">WNBA</span></span></h1>')
+h('<p class="hero-lede">New to the league? Start anywhere. Every player is a card, ',
+  "every card opens a page, and every number on it is explained before you leave.</p>")
+h('<div class="hero-figures">',
+  figure(nrow(players), "Players"), figure(nrow(teams), "Teams"),
+  figure(n_games, "Games played"), figure(n_points, "Points scored"),
+  "</div>")
+h("</div>")
+h('<div class="ticker"><div class="ticker-track">', finals, finals, "</div></div>")
+h("</section>")
+
+# --- 2. who's who ---------------------------------------------------------
+chips <- paste0(
+  '<button class="chip all" data-team="">All ', nrow(teams), ' teams</button>',
+  '<button class="chip" data-rookies="1">Rookies</button>',
+  paste0(
+    '<button class="chip" data-team="', teams$abbr, '">',
+    '<img src="', teams$logo, '" alt="" loading="lazy">', teams$abbr, "</button>",
+    collapse = ""
+  )
+)
+
+sortbar <- paste0(
+  '<div class="sortbar" id="wall-sort">',
+  paste0(
+    '<button data-sort="', c("pts", "reb", "ast", "min", "az"),
+    '"', c(" class=\"on\"", "", "", "", ""), ">",
+    c("Scoring", "Rebounds", "Assists", "Minutes", "A&ndash;Z"), "</button>",
+    collapse = ""
+  ),
+  "</div>"
+)
+
+h('<section id="who" class="band">')
+h('<div class="band-head reveal">')
+h('<p class="eyebrow">Chapter one</p>')
+h('<h2 class="band-title">Who&rsquo;s who</h2>')
+h('<p class="band-sub">Every one of the <b>', nrow(players), " players</b> who has taken the floor ",
+  "this season, sorted by whatever you care about. Pick a face and the panel beside the wall ",
+  "fills in with her season &mdash; and her line lights up in the race further down.</p>")
+h("</div>")
+h('<div class="controls reveal">',
+  '<input id="search" type="search" placeholder="Search a name or team" autocomplete="off">',
+  sortbar,
+  '<span class="band-sub" id="wall-count" style="margin:0;font-size:.8rem"></span>',
+  "</div>")
+h('<div class="teamchips reveal">', chips, "</div>")
+# a <div>, not an <aside>: Quarto's own stylesheet places every <aside> in the
+# margin column of its page grid, which pulls it out of this two-column shell
+h('<div class="wall-shell">',
+  '<div class="wall-col"><div id="wall"></div>',
+  '<button class="more" id="more" type="button" hidden></button></div>',
+  '<div id="dossier"></div></div>')
+h("</section>")
+
+# --- 3. leaders -----------------------------------------------------------
+lead_tabs <- paste0(
+  '<div class="tabs" id="lead-tabs">',
+  paste0(
+    '<button data-m="', c("pts", "reb", "ast", "stl", "blk", "tpm", "dd"),
+    '"', c(" class=\"on\"", "", "", "", "", "", ""), ">",
+    c("Points", "Rebounds", "Assists", "Steals", "Blocks", "3-Pointers", "Double-Doubles"),
+    "</button>",
+    collapse = ""
+  ),
+  "</div>"
+)
+
+per_toggle <- paste0(
+  '<div class="sortbar" id="per-toggle">',
+  '<button data-per="0" class="on">Season total</button>',
+  '<button data-per="1">Per game</button>',
+  "</div>"
+)
+
+h('<section id="leaders" class="band">')
+h('<div class="band-head reveal">')
+h('<p class="eyebrow">Chapter two</p>')
+h('<h2 class="band-title">The pecking order</h2>')
+h('<p class="band-sub">Ten deep in seven categories. Bars are drawn against the leader, ',
+  "so the gap you see is the gap there is. Click anyone to send her to the panel above.</p>")
+h("</div>")
+h('<div class="lead-controls reveal">', lead_tabs, per_toggle, "</div>")
+h('<div id="board" class="reveal"></div>')
+h('<p class="band-sub" id="board-note" style="font-size:.85rem"></p>')
+h("</section>")
+
+# --- 4. the race ----------------------------------------------------------
+h('<section id="race-band" class="band">')
+h('<div class="band-head reveal">')
+h('<p class="eyebrow">Chapter three</p>')
+h('<h2 class="band-title">The race</h2>')
+h('<p class="band-sub">Points scored so far, night after night. Every line is a player; ',
+  "the eight in front carry their names in their team&rsquo;s colour and the rest are the ",
+  "pack behind them. A line that steepens is someone getting hot. ",
+  "<b>Whoever is selected above is drawn in white.</b></p>")
+h("</div>")
+h('<div class="race-wrap reveal" id="race-anchor">',
+  '<svg id="race" viewBox="0 0 1000 430" role="img" aria-label="Cumulative points by date for every player"></svg>',
+  "</div>")
+h("</section>")
+
+# --- 5. teams -------------------------------------------------------------
+tcards <- paste0(
+  '<button class="tcard" type="button" style="--team:', teams$color, '" data-team="', teams$abbr, '">',
+  '<span class="top"><img src="', teams$logo, '" alt="" loading="lazy">',
+  '<span class="nm">', teams$name, "</span>",
+  '<span class="rec">', teams$w, "&ndash;", teams$l, "</span></span>",
+  '<span class="line2"><span>', sprintf("%.0f", teams$pf), " for &middot; ",
+  sprintf("%.0f", teams$pa), " against</span>",
+  '<span class="form">',
+  map_chr(teams$form, \(f) paste0('<i class="', f, '"></i>', collapse = "")),
+  "</span></span></button>",
+  collapse = ""
+)
+
+h('<section id="teams" class="band">')
+h('<div class="band-head reveal">')
+h('<p class="eyebrow">Chapter four</p>')
+h('<h2 class="band-title">Fifteen teams</h2>')
+h('<p class="band-sub">Won&ndash;lost record, average points scored and allowed, and the ',
+  "last ten results as pips &mdash; green won, red lost, oldest on the left. ",
+  "Click a crest to filter the wall down to that roster.</p>")
+h("</div>")
+h('<div id="standings" class="reveal">', tcards, "</div>")
+h("</section>")
+
+# --- 6. record book -------------------------------------------------------
+record_tabs <- paste0(
+  '<div class="tabs" id="career-tabs">',
+  paste0(
+    '<button data-m="', names(career_metrics), '"',
+    c(" class=\"on\"", rep("", length(career_metrics) - 1)), ">",
+    career_metrics, "</button>",
+    collapse = ""
+  ),
+  "</div>"
+)
+
+h('<section id="record" class="band">')
+h('<div class="band-head reveal">')
+h('<p class="eyebrow">Chapter five</p>')
+h('<h2 class="band-title">The record book</h2>')
+h('<p class="band-sub">Everyone who has played a regular-season game since <b>', min(dat$season),
+  "</b>, ranked by career totals. Names in orange are still playing this season &mdash; ",
+  "which is the quickest way to see whose numbers you are watching being written.</p>")
+h("</div>")
+h('<div class="lead-controls reveal">', record_tabs, "</div>")
+h('<div id="career-board" class="reveal"></div>')
+if (career_has_trunc) {
+  h('<p class="band-sub" style="font-size:.85rem">&dagger; Was on court in ',
+    min(dat$season), ", the first season these files cover. Anything she did ",
+    "before then &mdash; the league started in 1997 &mdash; is not counted here.</p>")
+}
+h("</section>")
+
+# --- 7. decoder -----------------------------------------------------------
+# Each term is illustrated with a player from this season rather than a made-up
+# number: the point is to make the vocabulary stick to someone you just met.
+top_ppg <- players |> filter(!is.na(rk_ppg)) |> slice_min(rk_ppg, n = 1, with_ties = FALSE)
+top_tot <- players |> slice_max(pts, n = 1, with_ties = FALSE)
+top_dd <- players |> slice_max(dd, n = 1, with_ties = FALSE)
+top_ts <- players |> filter(fga >= 150) |> slice_max(ts, n = 1, with_ties = FALSE)
+top_tpm <- players |> slice_max(tpm, n = 1, with_ties = FALSE)
+top_fill <- players |> filter(g >= MIN_GAMES) |>
+  mutate(fill = rpg + apg + spg + bpg) |> slice_max(fill, n = 1, with_ties = FALSE)
+top_gp <- players |> slice_max(g, n = 1, with_ties = FALSE)
+
+# The point of the per-game card is that the two orderings disagree, so it
+# needs the player they disagree about most — not just the two leaders, who
+# this season happen to be the same person. Among the qualified, this is the
+# biggest drop from a per-game rank to a season-total rank.
+gap <- players |>
+  filter(g >= MIN_GAMES) |>
+  mutate(rk_tot = rank(-pts, ties.method = "min")) |>
+  filter(rk_ppg <= 25) |>
+  slice_max(rk_tot - rk_ppg, n = 1, with_ties = FALSE)
+
+# "has not missed a night" is only true if her games match her team's games
+top_gp_team_games <- team_games |>
+  filter(team_abbreviation == top_gp$team) |>
+  nrow()
+
+term <- function(title, body, eg) paste0(
+  '<div class="term"><h3>', title, "</h3><p>", body, '</p><p class="eg">', eg, "</p></div>"
+)
+
+terms <- paste0(
+  term(
+    "Per game vs total",
+    paste0("A season total rewards whoever played the most nights. A per-game average ",
+           "rewards whoever did the most on each of them. Injuries make the two lists ",
+           "disagree, which is why the leaderboard above has a toggle."),
+    paste0(
+      "<b>", top_tot$name, "</b> has scored the most points overall &mdash; ",
+      top_tot$pts, " in ", top_tot$g, " games",
+      if (top_ppg$name != top_tot$name) {
+        paste0(", while <b>", top_ppg$name, "</b> leads per game at ",
+               sprintf("%.1f", top_ppg$ppg), ". ")
+      } else {
+        paste0(", and she leads per game too, at ", sprintf("%.1f", top_ppg$ppg),
+               ". The lists part company further down: ")
+      },
+      "<b>", gap$name, "</b> is ", ord_en(gap$rk_ppg), " at ",
+      sprintf("%.1f", gap$ppg), " a game but has played only ", gap$g,
+      ", which leaves her ", ord_en(gap$rk_tot), " in total points."
     )
+  ),
+  term(
+    "Double-double",
+    paste0("Ten or more of two different things in one game &mdash; usually points and ",
+           "rebounds, sometimes points and assists. It is shorthand for a complete night. ",
+           "Three of them at once is a triple-double, and those are rare."),
+    paste0("<b>", top_dd$name, "</b> has ", top_dd$dd, " this season",
+           if (top_dd$td > 0) paste0(", including ", top_dd$td, " triple-double",
+                                     if (top_dd$td > 1) "s" else "") else "", ".")
+  ),
+  term(
+    "The other four columns",
+    paste0("<b>Rebounds</b> are missed shots collected. <b>Assists</b> are passes that ",
+           "led straight to a basket. <b>Steals</b> take the ball off the other team; ",
+           "<b>blocks</b> swat their shot away. Together they describe everything a player ",
+           "does that is not scoring."),
+    paste0("<b>", top_fill$name, "</b> fills the sheet fastest: ",
+           sprintf("%.1f", top_fill$rpg), " rebounds, ", sprintf("%.1f", top_fill$apg),
+           " assists, ", sprintf("%.1f", top_fill$spg), " steals and ",
+           sprintf("%.1f", top_fill$bpg), " blocks a game.")
+  ),
+  term(
+    "Shooting percentages",
+    paste0("The share of attempts that went in. Shots from beyond the arc &mdash; the big ",
+           "curve about 22 feet out &mdash; count three points instead of two, so a lower ",
+           "three-point percentage can still be worth more than a higher one from close in."),
+    paste0("<b>", top_tpm$name, "</b> has made ", top_tpm$tpm, " threes, at ",
+           sprintf("%.1f%%", top_tpm$tpp), ". The league as a whole makes ",
+           sprintf("%.1f%%", league_avg$tpp), " of its threes and ",
+           sprintf("%.1f%%", league_avg$fgp), " of everything.")
+  ),
+  term(
+    "True shooting %",
+    paste0("One number that fixes the problem above: it credits threes for being worth ",
+           "three and counts free throws too. It runs higher than field-goal percentage ",
+           "by design, so compare it only against itself."),
+    paste0("<b>", top_ts$name, "</b> leads the shot-takers at ", sprintf("%.1f%%", top_ts$ts),
+           " true shooting.")
+  ),
+  term(
+    "Games played",
+    paste0("The quietest number and the one that decides the rest. A player who missed a ",
+           "month can top a per-game list without having been the season&rsquo;s best. ",
+           "Per-game leaderboards here need <b>", MIN_GAMES, " games</b>; totals do not."),
+    paste0("<b>", top_gp$name, "</b> ",
+           if (top_gp$g >= top_gp_team_games) "has not missed a night: " else "has played the most: ",
+           top_gp$g, " games, ", round(top_gp$min), " minutes on the floor.")
   )
+)
+
+h('<section id="decoder" class="band">')
+h('<div class="band-head reveal">')
+h('<p class="eyebrow">Chapter six</p>')
+h('<h2 class="band-title">Decoder</h2>')
+h('<p class="band-sub">Six pieces of vocabulary, each one attached to somebody you have ',
+  "just met. Learn them here and the rest of basketball reads itself.</p>")
+h("</div>")
+h('<div id="decoder-grid" class="reveal">', terms, "</div>")
+h("</section>")
 ```
 
-```{r ta}
-ta <- stat_dfs$total_assists |>
-  SharedData$new(key = ~athlete, group = "experience")
+::: {#fineprint .band}
 
-ta |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      total_seasons = colDef(name = "total seasons", maxWidth = md),
-      seasons = colDef(maxWidth = lg),
-      total_assists = colDef(
-        name = "ASSISTS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
-```
+<p class="eyebrow">The fine print</p>
 
-```{r tr}
-tr <- stat_dfs$total_rebounds |>
-  SharedData$new(key = ~athlete, group = "experience")
+<details>
+<summary>How these numbers were counted</summary>
 
-tr |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      total_seasons = colDef(name = "total seasons", maxWidth = md),
-      seasons = colDef(maxWidth = lg),
-      total_rebounds = colDef(
-        name = "REBOUNDS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
-```
-
-## Row {height=300px}
-
-```{r ts}
-ts <-stat_dfs$total_steals |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-ts |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      total_seasons = colDef(name = "total seasons", maxWidth = md),
-      seasons = colDef(maxWidth = lg),
-      total_steals = colDef(
-        name = "STEALS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
-```
-
-```{r tb}
-tb <- stat_dfs$total_blocks |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-tb |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      total_seasons = colDef(name = "total seasons", maxWidth = md),
-      seasons = colDef(maxWidth = lg),
-      total_blocks = colDef(
-        name = "BLOCKS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
-```
-
-```{r gm}
-gm <- stat_dfs$goals_made |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-gm |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      total_seasons = colDef(name = "total seasons", maxWidth = md),
-      seasons = colDef(maxWidth = lg),
-      goals_made = colDef(
-        name = "GOALS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
-```
-
-## Row {height=300px}
-
-```{r tm}
-tm <- stat_dfs$threes_made |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-tm |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      total_seasons = colDef(name = "total seasons", maxWidth = md),
-      seasons = colDef(maxWidth = lg),
-      threes_made = colDef(
-        name = "THREES",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
-```
-
-```{r tt}
-tt <- stat_dfs$total_turnovers |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-tt |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      total_seasons = colDef(name = "total seasons", maxWidth = md),
-      seasons = colDef(maxWidth = lg),
-      total_turnovers = colDef(
-        name = "T-OVERS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
-```
-
-
-# Methods
-
-::: {.card title="How games and points are calculated"}
+::: {.method-body}
 
 {{< include METHODOLOGY.md >}}
 
 :::
+
+</details>
+
+```{r colophon}
+#| output: asis
+cat(
+  '<div class="colophon">',
+  '<span>Meet the WNBA</span>',
+  '<span>Data through ', data_through, "</span>",
+  '<span>Rendered ', fmt_date(Sys.Date()), "</span>",
+  '<span>Source: <a href="https://wehoop.sportsdataverse.org/">wehoop</a></span>',
+  '<span>Built with <a href="https://quarto.org">Quarto</a> and R</span>',
+  "</div>",
+  sep = ""
+)
+```
+
+:::
+
+```{r script}
+#| output: asis
+cat("<script>\n", paste(readLines("courtside.js", warn = FALSE), collapse = "\n"), "\n</script>\n")
+```
