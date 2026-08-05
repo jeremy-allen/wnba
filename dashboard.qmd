@@ -338,13 +338,17 @@ stat <- function(data, col, ...) {
 # pictures this page draws at 110px and 26px. Its own combiner endpoint resizes
 # on the CDN and returns the same face at 13 KB. Nothing inlines these, so the
 # full-size versions were a live request per player on every view.
-espn_img <- function(url, w, h = w) {
+# The combiner resizes to exactly the width and height asked for, without
+# preserving aspect: a 600x436 headshot requested at 120x120 comes back
+# squashed, which stretched every face in the comparison table. Ask for a width
+# only and let it scale proportionally, or pass a height that matches the
+# source's own ratio. CSS `object-fit: cover` does any cropping from there.
+espn_img <- function(url, w, h = NULL) {
   path <- str_replace(url, "^https?://[a-z0-9.]+", "")
-  if_else(
-    is.na(url),
-    NA_character_,
-    paste0("https://a.espncdn.com/combiner/i?img=", path, "&w=", w, "&h=", h)
-  )
+  size <- paste0("&w=", w, if (!is.null(h)) paste0("&h=", h))
+  if_else(is.na(url), NA_character_, paste0(
+    "https://a.espncdn.com/combiner/i?img=", path, size
+  ))
 }
 
 # ESPN's brand colours are picked for white backgrounds, so several of them --
@@ -606,7 +610,7 @@ season_box <- dat |>
 
 profile <- season_box |>
   summarise(
-    shot = espn_img(first(na.omit(athlete_headshot_href)), 220, 160),
+    shot = espn_img(first(na.omit(athlete_headshot_href)), 220),
     logo = espn_img(last(na.omit(team_logo)), 52),
     color = accent(team_color[which.max(game_date)]),
     team = team_display_name[which.max(game_date)],
@@ -978,6 +982,29 @@ court_theme <- reactableTheme(
   pageButtonActiveStyle = list(backgroundColor = panel_3, color = wnba_orange)
 )
 
+# The four charts repeated the same fifteen lines of theme. One object, added
+# to each plot, so a change lands everywhere at once.
+court_gg <- theme_light() +
+  theme(
+    legend.position = "none",
+    text = element_text(color = bone),
+    axis.text = element_text(color = mute),
+    axis.title = element_text(size = 10, color = mute),
+    axis.line = element_blank(),
+    axis.text.x = element_text(size = 8),
+    panel.grid = element_blank(),
+    # ggplotly turns panel.border into a layout shape and renders its `fill =
+    # NA` as opaque white, which put a white rectangle behind every chart the
+    # moment the page went dark. theme_light() sets that border, and the
+    # panel.background override below never reached it. An explicit transparent
+    # fill keeps the frame and loses the rectangle.
+    panel.border = element_rect(fill = "transparent", color = line),
+    panel.background = element_rect(fill = ink, color = ink),
+    plot.background = element_rect(fill = ink, color = ink),
+    plot.title = element_text(size = 14, color = bone),
+    plot.margin = unit(c(16, 28, 12, 20), "points")
+  )
+
 # The rank cell doubles as the bar: every leaderboard reads at a glance because
 # the longest bar is the leader and one half as long is half the total.
 bar_cell <- function(value, max_value, colour = wnba_orange) {
@@ -1141,24 +1168,10 @@ race_plot <- race |>
     x = NULL,
     y = "Points Scored"
   ) +
-  theme_light() +
-  theme(
-    legend.position = "none",
-    text = element_text(color = wnba_tan),
-    axis.text = element_text(color = wnba_tan),
-    axis.line = element_blank(),
-    axis.text.x = element_text(size = 8),
-    axis.title = element_text(size = 10),
-    panel.grid = element_blank(),
-    panel.background = element_rect(fill = wnba_black, color = wnba_black),
-    plot.background = element_rect(fill = wnba_black, color = wnba_black),
-    plot.title = element_text(size = 14),
-    plot.margin = unit(c(20, 40, 20, 40), "points")
-  )
+  court_gg
 
 ggplotly(
   race_plot,
-  height = 330,
   tooltip = c("athlete", "game_date", "cum_points")
 ) |>
   highlight(
@@ -1183,24 +1196,10 @@ efficiency_plot <- efficiency |>
     x = "Field Goal Attempts per Game",
     y = "True Shooting %"
   ) +
-  theme_light() +
-  theme(
-    legend.position = "none",
-    text = element_text(color = wnba_tan),
-    axis.text = element_text(color = wnba_tan),
-    axis.line = element_blank(),
-    axis.text.x = element_text(size = 8),
-    axis.title = element_text(size = 10),
-    panel.grid = element_blank(),
-    panel.background = element_rect(fill = wnba_black, color = wnba_black),
-    plot.background = element_rect(fill = wnba_black, color = wnba_black),
-    plot.title = element_text(size = 14),
-    plot.margin = unit(c(20, 40, 20, 40), "points")
-  )
+  court_gg
 
 ggplotly(
   efficiency_plot,
-  height = 330,
   tooltip = c("athlete", "fga_per_game", "ts_pct")
 )
 
@@ -1224,27 +1223,16 @@ points_plot <- points |>
     limits = factor(c(1:(num_games + 1))),
     breaks = as.character(c(1:(num_games)))
   ) +
-  theme_light() +
+  court_gg +
   theme(
-    legend.position = "none",
-    text = element_text(color = wnba_tan),
-    axis.text = element_text(color = wnba_tan),
-    axis.line = element_blank(),
     axis.text.y = element_blank(),
     axis.ticks.y = element_blank(),
     axis.text.x = element_text(size = 8, angle = 300, hjust = 0),
-    axis.title = element_text(size = 10),
-    panel.grid = element_blank(),
-    panel.background = element_rect(fill = wnba_black, color = wnba_black),
-    plot.background = element_rect(fill = wnba_black, color = wnba_black),
-    plot.title = element_text(size = 14),
-    plot.margin = unit(c(20, 40, 20, 40), "points"),
     aspect.ratio = court_ratio
   )
 
 ggplotly(
   points_plot,
-  height = 330,
   tooltip = c("athlete", "n_games", "n_points")
 )
 
@@ -1298,6 +1286,12 @@ stat_card(stat24_dfs$total_turnovers, "total_turnovers", "Turnovers")
 
 ```{r teamcards}
 #| title: "Fifteen teams · won-lost, points for and against, last ten"
+
+# bslib walks this tag tree and stamps `html-fill-item html-fill-container` on
+# every node, which turns each card and the row inside it into a column
+# flexbox. The stylesheet answers that by scoping these rules under #standings,
+# which outranks a single class; emitting the markup as text instead only
+# traded the problem for pandoc reading htmltools' indentation as a code block.
 div(
   id = "standings",
   pmap(
@@ -1380,21 +1374,11 @@ seasons_plot <- player_experience |>
     limits = factor(seq_len(max_seasons)),
     breaks = as.character(seq_len(max_seasons))
   ) +
-  theme_light() +
+  court_gg +
   theme(
-    legend.position = "none",
-    text = element_text(color = wnba_tan),
-    axis.text = element_text(color = wnba_tan),
-    axis.line = element_blank(),
     axis.text.y = element_blank(),
     axis.ticks.y = element_blank(),
     axis.text.x = element_text(size = 10),
-    axis.title = element_text(size = 10),
-    panel.grid = element_blank(),
-    panel.background = element_rect(fill = wnba_black, color = wnba_black),
-    plot.background = element_rect(fill = wnba_black, color = wnba_black),
-    plot.title = element_text(size = 14),
-    plot.margin = unit(c(20, 40, 20, 40), "points"),
     aspect.ratio = court_ratio
   )
 
