@@ -1,7 +1,9 @@
 # What Quarto is actually doing in this project
 
-Notes from a discussion on 2026-08-04, branch `wow`. Nothing here has been
-acted on. No code was changed to produce it.
+Notes from a discussion on 2026-08-04, branch `wow`. No code was changed to
+produce them. One thing they proposed was then acted on, on 2026-08-05: the
+static prose moved into markdown. What follows describes the file as it was on
+2026-08-04; where the move changed something, the section says so.
 
 ## Where things stand
 
@@ -17,10 +19,10 @@ c31dcae  Take the edge off the contrast
 b028ef5  Rebuild the dashboard as a scrolling, six-chapter page
 ```
 
-Four files carry the work: `dashboard.qmd` (767 lines), `courtside.scss`
-(1,163), `courtside.js` (574), `METHODOLOGY.md` (114). The old
-`styles.scss` was deleted and is recoverable with
-`git checkout main -- styles.scss`.
+Four files carried the work: `dashboard.qmd` (767 lines), `courtside.scss`
+(1,163), `courtside.js` (574), `METHODOLOGY.md` (114). The markdown move added
+a fifth, `record-footnote.qmd` (5). The old `styles.scss` was deleted and is
+recoverable with `git checkout main -- styles.scss`.
 
 ## The question
 
@@ -38,10 +40,21 @@ dashboard.qmd            767 lines
   markdown body           27   (4%, of which 8 non-blank)
 ```
 
-The eight non-blank lines of markdown body are two fenced divs
+The eight non-blank lines of markdown body were two fenced divs
 (`::: {#fineprint .band}` and `::: {.method-body}`), one shortcode
-(`{{< include METHODOLOGY.md >}}`), and a raw `<details>` block. That is the
+(`{{< include METHODOLOGY.md >}}`), and a raw `<details>` block. That was the
 whole authoring layer.
+
+The same count after the markdown move:
+
+```
+dashboard.qmd            891 lines
+  YAML front matter       17
+  inside R chunks        652   (73%)
+      emitting HTML      122
+      data logic         486
+  markdown body          223   (25%, of which 143 non-blank)
+```
 
 To re-derive after further edits:
 
@@ -126,46 +139,70 @@ The tell: `METHODOLOGY.md` is the one place prose was allowed to be markdown,
 and it is the one place editing was pleasant. That is the format doing its
 job.
 
-## What an idiomatic version would look like
+This is the criticism the 2026-08-05 move answers. The next section says how.
 
-Quarto supports inline R inside markdown, so the six section intros could be
-authored as prose:
+## What an idiomatic version looks like
+
+Done on 2026-08-05. Every sentence a reader sees is now markdown, and the
+authoring layer went from 8 non-blank lines to 143.
+
+Each band is a fenced div, and the heading and intro inside it are prose, with
+inline R supplying the computed numbers:
 
 ```markdown
 ::: {.band-head .reveal}
-## The pecking order
+## The pecking order {.band-title}
 
+::: {.band-sub}
 The top ten in each of seven categories. Every bar starts at zero and the
 longest one is the leader, so a bar half as long is half the total. Click a
 row to open that player's panel.
 :::
+:::
 ```
 
-with `` `r nrow(players)` `` supplying computed numbers inline.
+What moved, and what stayed:
 
-Only genuinely generated markup needs to stay in `cat()`: the 225 player
-cards, the score ticker, the team cards, the leaderboards, and the decoder
-examples that interpolate player names and figures.
-
-Rough split of the 182 HTML-emitting lines, by eye:
-
-| stays generated | could become markdown |
+| stays generated | is now markdown |
 |---|---|
 | player cards, ticker, team cards, chips, tabs | hero lede |
 | decoder card *examples* (interpolate data) | six section intros |
-| the payload `<script>` block | decoder card *bodies* (static definitions) |
+| the payload `<script>` block | decoder card *bodies* |
 | | the record-book dagger footnote |
 
-The pattern is already proven in the file. `#fineprint` uses a fenced div and
-was not reused anywhere else.
+The single `page` chunk became twelve, each named for the part of the page it
+builds and each emitting balanced markup, so no HTML element is left open
+across a markdown boundary. The decoder examples are built as a list, `eg`, and
+dropped into their cards with `` `r eg$double_double` ``.
+
+Three things the move needed:
+
+- **A child document.** The dagger footnote appears only when a leaderboard on
+  show contains a career the data truncates, and markdown has no conditional.
+  `#| child: !expr if (career_has_trunc) "record-footnote.qmd"` is knitr's
+  answer: the file is knitted, inline R and all, or not read at all.
+- **An explicit heading id.** `## Decoder` would generate `#decoder` on its own
+  and collide with the band that carries it.
+- **Four stylesheet rules, and two selectors widened.** A paragraph in a fenced
+  div arrives as a `<p>` inside the div rather than as the div itself, so
+  `.band-sub`, `.hero-lede` and `.term .eg` each had to account for the
+  paragraph inside them. Markdown emphasis arrives as `<strong>`, so the two
+  rules that coloured `<b>` now name both.
+
+Pandoc's smart typography replaced the hand-escaped entities: `'` becomes a
+curly apostrophe, `--` an en dash, and `†` is simply typed. The rendered page
+is unchanged apart from element names the stylesheet does not select on: a
+`<section class="band">` is now a `<div class="band">`, and each `.band-head`
+is the `<section>` Quarto builds around the heading.
 
 ## Open decisions for next session
 
-1. **Refactor the static prose into markdown, or leave it?** The upside is
-   that copy edits become text edits. The cost is a mixed authoring model
-   where some sections are markdown and some are `cat()`, which could read as
-   inconsistent. Worth prototyping on one section first, probably *The
-   pecking order*, and judging from that.
+1. ~~**Refactor the static prose into markdown, or leave it?**~~ Settled on
+   2026-08-05: refactored, all seven bands at once rather than one as a
+   prototype. The mixed authoring model it was expected to cost turns out to
+   fall on a clean line — prose in markdown, generated markup in chunks — and
+   the file now reads as a page with data in it rather than as a script that
+   prints a page.
 
 2. **Keep Bootstrap or drop it?** Quarto's `html` format bundles it. Check
    whether `minimal: true` or a bare `theme` gets a cleaner base without

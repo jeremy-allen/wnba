@@ -292,6 +292,8 @@ race_ticks <- tibble(i = tick_i - 1L, l = toupper(format(dates[tick_i], "%b")))
 # Career totals back to 2004, regular season only. The page is otherwise about
 # this season alone, and a newcomer has no way to tell whether 746 points is a
 # lot without something to measure it against.
+data_from <- min(dat$season)
+
 career <- dat |>
   filter(type_id == 1, !is.na(athlete_display_name)) |>
   arrange(game_date) |>
@@ -324,7 +326,7 @@ career <- dat |>
     # first season here is 2004 may well have been playing before it. Their
     # span and their totals are both cut off, and saying "2004-2016" of a
     # career that ran 2002-2016 would be a claim the data cannot support.
-    trunc = first_season == min(dat$season)
+    trunc = first_season == data_from
   )
 
 career_metrics <- c(pts = "Points", reb = "Rebounds", ast = "Assists",
@@ -390,7 +392,7 @@ json <- gsub("</", "<\\\\/", json, fixed = TRUE)
 cat('<script id="payload" type="application/json">', json, "</script>\n", sep = "")
 ```
 
-```{r page}
+```{r furniture}
 #| output: asis
 
 n_games <- n_distinct(now_dat$game_id)
@@ -399,7 +401,6 @@ data_through <- fmt_date(max(now_dat$game_date, na.rm = TRUE))
 
 h <- function(...) cat(..., "\n", sep = "")
 
-# --- page furniture -------------------------------------------------------
 h('<div id="progress"></div><div id="tip"></div>')
 
 # the same names the headings carry, so the rail never gives a section a
@@ -411,9 +412,14 @@ h('<nav id="rail">', paste0(
   '<a href="#', names(rail), '"><span class="lbl">', rail, '</span><span class="dot"></span></a>',
   collapse = ""
 ), "</nav>")
+```
 
-# --- 1. tip-off -----------------------------------------------------------
-court <- paste0(
+::: {#tipoff .band}
+
+```{r court}
+#| output: asis
+
+h(
   '<svg id="court" viewBox="0 0 940 500" preserveAspectRatio="xMidYMid meet" aria-hidden="true">',
   '<rect class="ln" x="10" y="10" width="920" height="480"/>',
   '<line class="ln" x1="470" y1="10" x2="470" y2="490"/>',
@@ -428,10 +434,41 @@ court <- paste0(
   '<path class="ln" d="M 930 30 L 850 30 A 221 221 0 0 0 850 470 L 930 470"/>',
   "</svg>"
 )
+```
+
+::: {.hero}
+
+```{r hero-head}
+#| output: asis
+
+h('<div class="hero-kicker"><span class="live">', this_year, ' Regular Season</span>',
+  '<span>Data through ', data_through, "</span></div>")
+h('<h1 class="hero-title">Meet<span class="l2">the <span class="ghost">WNBA</span></span></h1>')
+```
+
+::: {.hero-lede}
+New to the league? Start anywhere. Every player has a card below, and clicking
+one fills the panel beside it with her season. The decoder at the foot of the
+page explains what each number means.
+:::
+
+```{r hero-figures}
+#| output: asis
 
 figure <- function(v, l) paste0(
   '<div class="figure"><span class="fv" data-to="', v, '">0</span><span class="fl">', l, "</span></div>"
 )
+
+h('<div class="hero-figures">',
+  figure(nrow(players), "Players"), figure(nrow(teams), "Teams"),
+  figure(n_games, "Games played"), figure(n_points, "Points scored"),
+  "</div>")
+```
+
+:::
+
+```{r ticker}
+#| output: asis
 
 ticker_item <- function(r) {
   side <- function(ab, sc, col, won) paste0(
@@ -449,23 +486,28 @@ ticker_item <- function(r) {
 
 finals <- paste0(map_chr(seq_len(nrow(recent)), \(i) ticker_item(recent[i, ])), collapse = "")
 
-h('<section id="tipoff" class="band">', court)
-h('<div class="hero">')
-h('<div class="hero-kicker"><span class="live">', this_year, ' Regular Season</span>',
-  '<span>Data through ', data_through, "</span></div>")
-h('<h1 class="hero-title">Meet<span class="l2">the <span class="ghost">WNBA</span></span></h1>')
-h('<p class="hero-lede">New to the league? Start anywhere. Every player has a card ',
-  "below, and clicking one fills the panel beside it with her season. The decoder at the ",
-  "foot of the page explains what each number means.</p>")
-h('<div class="hero-figures">',
-  figure(nrow(players), "Players"), figure(nrow(teams), "Teams"),
-  figure(n_games, "Games played"), figure(n_points, "Points scored"),
-  "</div>")
-h("</div>")
 h('<div class="ticker"><div class="ticker-track">', finals, finals, "</div></div>")
-h("</section>")
+```
 
-# --- 2. who's who ---------------------------------------------------------
+:::
+
+::: {#who .band}
+
+::: {.band-head .reveal}
+## Who's who {.band-title}
+
+::: {.band-sub}
+All **`r nrow(players)` players** who have played at least one game this season.
+Sort them by scoring, rebounds, assists, minutes or alphabetically, and filter
+by team. Click a card and the panel beside the wall fills with that player's
+season. That same player is drawn as the thick pale line in the race chart
+further down.
+:::
+:::
+
+```{r wall}
+#| output: asis
+
 chips <- paste0(
   '<button class="chip all" data-team="">All ', nrow(teams), ' teams</button>',
   '<button class="chip" data-rookies="1">Rookies</button>',
@@ -487,14 +529,6 @@ sortbar <- paste0(
   "</div>"
 )
 
-h('<section id="who" class="band">')
-h('<div class="band-head reveal">')
-h('<h2 class="band-title">Who&rsquo;s who</h2>')
-h('<p class="band-sub">All <b>', nrow(players), " players</b> who have played at least one game ",
-  "this season. Sort them by scoring, rebounds, assists, minutes or alphabetically, and filter ",
-  "by team. Click a card and the panel beside the wall fills with that player's season. ",
-  "That same player is drawn as the thick pale line in the race chart further down.</p>")
-h("</div>")
 h('<div class="controls reveal">',
   '<input id="search" type="search" placeholder="Search a name or team" autocomplete="off">',
   sortbar,
@@ -507,9 +541,25 @@ h('<div class="wall-shell">',
   '<div class="wall-col"><div id="wall"></div>',
   '<button class="more" id="more" type="button" hidden></button></div>',
   '<div id="dossier"></div></div>')
-h("</section>")
+```
 
-# --- 3. leaders -----------------------------------------------------------
+:::
+
+::: {#leaders .band}
+
+::: {.band-head .reveal}
+## The pecking order {.band-title}
+
+::: {.band-sub}
+The top ten in each of seven categories. Every bar starts at zero and the
+longest one is the leader, so a bar half as long is half the total. Click a row
+to open that player's panel.
+:::
+:::
+
+```{r board}
+#| output: asis
+
 lead_tabs <- paste0(
   '<div class="tabs" id="lead-tabs">',
   paste0(
@@ -529,34 +579,53 @@ per_toggle <- paste0(
   "</div>"
 )
 
-h('<section id="leaders" class="band">')
-h('<div class="band-head reveal">')
-h('<h2 class="band-title">The pecking order</h2>')
-h('<p class="band-sub">The top ten in each of seven categories. Every bar starts at zero and ',
-  "the longest one is the leader, so a bar half as long is half the total. Click a row to ",
-  "open that player&rsquo;s panel.</p>")
-h("</div>")
 h('<div class="lead-controls reveal">', lead_tabs, per_toggle, "</div>")
 h('<div id="board" class="reveal"></div>')
-h('<p class="band-sub" id="board-note" style="font-size:.85rem"></p>')
-h("</section>")
+h('<p class="band-sub footnote" id="board-note"></p>')
+```
 
-# --- 4. the race ----------------------------------------------------------
-h('<section id="race-band" class="band">')
-h('<div class="band-head reveal">')
-h('<h2 class="band-title">The race</h2>')
-h('<p class="band-sub">Every line is one player&rsquo;s points, adding up game by game. The ',
-  "eight highest scorers are labelled and drawn in their team&rsquo;s colour, and the other ",
-  nrow(players) - 8, " stay grey. Where a line gets steeper, that player was scoring more ",
-  "per game than she had been. <b>Whichever player is open in the panel above is the thick ",
-  "pale line.</b></p>")
-h("</div>")
+:::
+
+::: {#race-band .band}
+
+::: {.band-head .reveal}
+## The race {.band-title}
+
+::: {.band-sub}
+Every line is one player's points, adding up game by game. The eight highest
+scorers are labelled and drawn in their team's colour, and the other
+`r nrow(players) - 8` stay grey. Where a line gets steeper, that player was
+scoring more per game than she had been. **Whichever player is open in the
+panel above is the thick pale line.**
+:::
+:::
+
+```{r race-chart}
+#| output: asis
+
 h('<div class="race-wrap reveal" id="race-anchor">',
   '<svg id="race" viewBox="0 0 1000 430" role="img" aria-label="Cumulative points by date for every player"></svg>',
   "</div>")
-h("</section>")
+```
 
-# --- 5. teams -------------------------------------------------------------
+:::
+
+::: {#teams .band}
+
+::: {.band-head .reveal}
+## Fifteen teams {.band-title}
+
+::: {.band-sub}
+Each card carries the won--lost record, the average points scored and allowed
+per game, and the last ten results as small squares: green for a win, red for a
+loss, oldest on the left. Click a card to filter the wall of players down to
+that team's roster.
+:::
+:::
+
+```{r standings}
+#| output: asis
+
 tcards <- paste0(
   '<button class="tcard" type="button" style="--team:', teams$color, '" data-team="', teams$abbr, '">',
   '<span class="top"><img src="', teams$logo, '" alt="" loading="lazy">',
@@ -570,18 +639,26 @@ tcards <- paste0(
   collapse = ""
 )
 
-h('<section id="teams" class="band">')
-h('<div class="band-head reveal">')
-h('<h2 class="band-title">Fifteen teams</h2>')
-h('<p class="band-sub">Each card carries the won&ndash;lost record, the average points ',
-  "scored and allowed per game, and the last ten results as small squares: green for a win, ",
-  "red for a loss, oldest on the left. Click a card to filter the wall of players down ",
-  "to that team&rsquo;s roster.</p>")
-h("</div>")
 h('<div id="standings" class="reveal">', tcards, "</div>")
-h("</section>")
+```
 
-# --- 6. record book -------------------------------------------------------
+:::
+
+::: {#record .band}
+
+::: {.band-head .reveal}
+## The record book {.band-title}
+
+::: {.band-sub}
+Everyone who has played a regular-season game since **`r data_from`**, ranked by
+career totals. The players in orange are still playing this season, so their
+totals keep rising. Click one of them to open her panel.
+:::
+:::
+
+```{r career-board}
+#| output: asis
+
 record_tabs <- paste0(
   '<div class="tabs" id="career-tabs">',
   paste0(
@@ -593,23 +670,17 @@ record_tabs <- paste0(
   "</div>"
 )
 
-h('<section id="record" class="band">')
-h('<div class="band-head reveal">')
-h('<h2 class="band-title">The record book</h2>')
-h('<p class="band-sub">Everyone who has played a regular-season game since <b>', min(dat$season),
-  "</b>, ranked by career totals. The players in orange are still playing this season, so ",
-  "their totals keep rising. Click one of them to open her panel.</p>")
-h("</div>")
 h('<div class="lead-controls reveal">', record_tabs, "</div>")
 h('<div id="career-board" class="reveal"></div>')
-if (career_has_trunc) {
-  h('<p class="band-sub" style="font-size:.85rem">&dagger; This player was already on court in ',
-    min(dat$season), ", the first season these files cover. The league began play in 1997, so ",
-    "any games she played before ", min(dat$season), " are missing from her total.</p>")
-}
-h("</section>")
+```
 
-# --- 7. decoder -----------------------------------------------------------
+```{r record-footnote}
+#| child: !expr if (career_has_trunc) "record-footnote.qmd"
+```
+
+:::
+
+```{r decoder-examples}
 # Each term is illustrated with a player from this season rather than a made-up
 # number, so the vocabulary attaches to someone the reader has just seen.
 top_ppg <- players |> filter(!is.na(rk_ppg)) |> slice_min(rk_ppg, n = 1, with_ties = FALSE)
@@ -636,100 +707,154 @@ top_gp_team_games <- team_games |>
   filter(team_abbreviation == top_gp$team) |>
   nrow()
 
-term <- function(title, body, eg) paste0(
-  '<div class="term"><h3>', title, "</h3><p>", body, '</p><p class="eg">', eg, "</p></div>"
-)
-
-terms <- paste0(
-  term(
-    "Per game vs total",
-    paste0("A season total favours whoever played the most games. A per-game average ",
-           "favours whoever produced the most in each game. Missed games pull the two ",
-           "rankings apart, which is why each leaderboard offers both."),
-    paste0(
-      "<b>", top_tot$name, "</b> has scored the most points overall, ",
-      top_tot$pts, " in ", top_tot$g, " games",
-      if (top_ppg$name != top_tot$name) {
-        paste0(", while <b>", top_ppg$name, "</b> leads per game at ",
-               sprintf("%.1f", top_ppg$ppg), ". ")
-      } else {
-        paste0(", and she leads per game too, at ", sprintf("%.1f", top_ppg$ppg),
-               ". The two rankings diverge further down. ")
-      },
-      "<b>", gap$name, "</b> is ", ord_en(gap$rk_ppg), " at ",
-      sprintf("%.1f", gap$ppg), " a game but has played only ", gap$g,
-      " games, which leaves her ", ord_en(gap$rk_tot), " in total points."
-    )
+# One example per decoder card. The cards themselves are markdown below; only
+# these sentences have to be built, because each one quotes this season.
+eg <- list(
+  per_game = paste0(
+    "<b>", top_tot$name, "</b> has scored the most points overall, ",
+    top_tot$pts, " in ", top_tot$g, " games",
+    if (top_ppg$name != top_tot$name) {
+      paste0(", while <b>", top_ppg$name, "</b> leads per game at ",
+             sprintf("%.1f", top_ppg$ppg), ". ")
+    } else {
+      paste0(", and she leads per game too, at ", sprintf("%.1f", top_ppg$ppg),
+             ". The two rankings diverge further down. ")
+    },
+    "<b>", gap$name, "</b> is ", ord_en(gap$rk_ppg), " at ",
+    sprintf("%.1f", gap$ppg), " a game but has played only ", gap$g,
+    " games, which leaves her ", ord_en(gap$rk_tot), " in total points."
   ),
-  term(
-    "Double-double",
-    paste0("Ten or more in two of the five counting statistics in one game: points, ",
-           "rebounds, assists, steals and blocks. Most pair points with rebounds. ",
-           "Ten or more in three of them is a triple-double."),
-    paste0("<b>", top_dd$name, "</b> has ", top_dd$dd, " double-doubles this season. ",
-           "The whole league has produced ", league_td, " triple-double",
-           if (league_td == 1) "" else "s", " so far.")
+  double_double = paste0(
+    "<b>", top_dd$name, "</b> has ", top_dd$dd, " double-doubles this season. ",
+    "The whole league has produced ", league_td, " triple-double",
+    if (league_td == 1) "" else "s", " so far."
   ),
-  term(
-    "Rebounds, assists, steals, blocks",
-    paste0("A <b>rebound</b> is a missed shot collected off the rim or backboard. An ",
-           "<b>assist</b> is a pass that leads directly to a team-mate&rsquo;s basket. A ",
-           "<b>steal</b> takes the ball away from an opponent, and a <b>block</b> deflects ",
-           "an opponent&rsquo;s shot. These four measure what a player contributes apart ",
-           "from scoring."),
-    paste0("<b>", top_fill$name, "</b> has the highest combined total of the four: ",
-           sprintf("%.1f", top_fill$rpg), " rebounds, ", sprintf("%.1f", top_fill$apg),
-           " assists, ", sprintf("%.1f", top_fill$spg), " steals and ",
-           sprintf("%.1f", top_fill$bpg), " blocks a game.")
+  contributions = paste0(
+    "<b>", top_fill$name, "</b> has the highest combined total of the four: ",
+    sprintf("%.1f", top_fill$rpg), " rebounds, ", sprintf("%.1f", top_fill$apg),
+    " assists, ", sprintf("%.1f", top_fill$spg), " steals and ",
+    sprintf("%.1f", top_fill$bpg), " blocks a game."
   ),
-  term(
-    "Shooting percentages",
-    paste0("The share of a player&rsquo;s shots that go in. A shot from behind the ",
-           "three-point arc, roughly 22 feet from the basket, is worth three points rather ",
-           "than two, so a percentage from outside the arc and one from inside it cannot ",
-           "be compared directly. Multiply each by what that shot is worth."),
-    paste0("The league makes ", sprintf("%.1f%%", league_avg$tpp), " of its threes and ",
-           sprintf("%.1f%%", league_avg$twop), " of its two-point shots, which come to ",
-           pts_per_three, " and ", pts_per_two, " points per attempt. The ",
-           sprintf("%.1f", league_avg$twop - league_avg$tpp),
-           "-point gap between the percentages is worth almost nothing. <b>", top_tpm$name,
-           "</b> has made the most threes, ", top_tpm$tpm, " at ",
-           sprintf("%.1f%%", top_tpm$tpp), ".")
+  shooting = paste0(
+    "The league makes ", sprintf("%.1f%%", league_avg$tpp), " of its threes and ",
+    sprintf("%.1f%%", league_avg$twop), " of its two-point shots, which come to ",
+    pts_per_three, " and ", pts_per_two, " points per attempt. The ",
+    sprintf("%.1f", league_avg$twop - league_avg$tpp),
+    "-point gap between the percentages is worth almost nothing. <b>", top_tpm$name,
+    "</b> has made the most threes, ", top_tpm$tpm, " at ",
+    sprintf("%.1f%%", top_tpm$tpp), "."
   ),
-  term(
-    "True shooting %",
-    paste0("A single percentage that counts a three as three points and includes free ",
-           "throws, so it measures scoring efficiency across every kind of shot. It ",
-           "normally runs higher than field-goal percentage, so compare a player&rsquo;s true ",
-           "shooting only with another player&rsquo;s true shooting."),
-    paste0("<b>", top_ts$name, "</b> is the most efficient of the players who have attempted ",
-           "150 or more field goals, at ", sprintf("%.1f%%", top_ts$ts), ".")
+  true_shooting = paste0(
+    "<b>", top_ts$name, "</b> is the most efficient of the players who have attempted ",
+    "150 or more field goals, at ", sprintf("%.1f%%", top_ts$ts), "."
   ),
-  term(
-    "Games played",
-    paste0("Every per-game figure divides by this number, so it sets what all the others ",
-           "mean. A player who missed a month can lead a per-game ranking without having ",
-           "been the season&rsquo;s best. Per-game rankings on this page require <b>",
-           MIN_GAMES, " games</b>, but season totals have no minimum."),
-    paste0("<b>", top_gp$name, "</b> ",
-           if (top_gp$g >= top_gp_team_games) {
-             paste0("has played every game her team has this season, all ", top_gp$g)
-           } else {
-             paste0("has played the most games of anyone, ", top_gp$g)
-           },
-           ", for ", round(top_gp$min), " minutes on court.")
+  games_played = paste0(
+    "<b>", top_gp$name, "</b> ",
+    if (top_gp$g >= top_gp_team_games) {
+      paste0("has played every game her team has this season, all ", top_gp$g)
+    } else {
+      paste0("has played the most games of anyone, ", top_gp$g)
+    },
+    ", for ", round(top_gp$min), " minutes on court."
   )
 )
-
-h('<section id="decoder" class="band">')
-h('<div class="band-head reveal">')
-h('<h2 class="band-title">Decoder</h2>')
-h('<p class="band-sub">Six terms used throughout this page, each one shown with a player ',
-  "from this season rather than an invented example.</p>")
-h("</div>")
-h('<div id="decoder-grid" class="reveal">', terms, "</div>")
-h("</section>")
 ```
+
+<!-- the heading below is given an id, because "Decoder" would generate
+     #decoder on its own and collide with the band that carries it -->
+
+::: {#decoder .band}
+
+::: {.band-head .reveal}
+## Decoder {#decoder-title .band-title}
+
+::: {.band-sub}
+Six terms used throughout this page, each one shown with a player from this
+season rather than an invented example.
+:::
+:::
+
+::: {#decoder-grid .reveal}
+
+::: {.term}
+### Per game vs total
+
+A season total favours whoever played the most games. A per-game average
+favours whoever produced the most in each game. Missed games pull the two
+rankings apart, which is why each leaderboard offers both.
+
+::: {.eg}
+`r eg$per_game`
+:::
+:::
+
+::: {.term}
+### Double-double
+
+Ten or more in two of the five counting statistics in one game: points,
+rebounds, assists, steals and blocks. Most pair points with rebounds. Ten or
+more in three of them is a triple-double.
+
+::: {.eg}
+`r eg$double_double`
+:::
+:::
+
+::: {.term}
+### Rebounds, assists, steals, blocks
+
+A **rebound** is a missed shot collected off the rim or backboard. An
+**assist** is a pass that leads directly to a team-mate's basket. A **steal**
+takes the ball away from an opponent, and a **block** deflects an opponent's
+shot. These four measure what a player contributes apart from scoring.
+
+::: {.eg}
+`r eg$contributions`
+:::
+:::
+
+::: {.term}
+### Shooting percentages
+
+The share of a player's shots that go in. A shot from behind the three-point
+arc, roughly 22 feet from the basket, is worth three points rather than two, so
+a percentage from outside the arc and one from inside it cannot be compared
+directly. Multiply each by what that shot is worth.
+
+::: {.eg}
+`r eg$shooting`
+:::
+:::
+
+::: {.term}
+### True shooting %
+
+A single percentage that counts a three as three points and includes free
+throws, so it measures scoring efficiency across every kind of shot. It
+normally runs higher than field-goal percentage, so compare a player's true
+shooting only with another player's true shooting.
+
+::: {.eg}
+`r eg$true_shooting`
+:::
+:::
+
+::: {.term}
+### Games played
+
+Every per-game figure divides by this number, so it sets what all the others
+mean. A player who missed a month can lead a per-game ranking without having
+been the season's best. Per-game rankings on this page require
+**`r MIN_GAMES` games**, but season totals have no minimum.
+
+::: {.eg}
+`r eg$games_played`
+:::
+:::
+
+:::
+
+:::
 
 ::: {#fineprint .band}
 

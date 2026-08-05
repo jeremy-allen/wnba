@@ -1,0 +1,5 @@
+::: {.band-sub .footnote}
+† This player was already on court in `r data_from`, the first season these
+files cover. The league began play in 1997, so any games she played before
+`r data_from` are missing from her total.
+:::

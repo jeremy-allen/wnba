@@ -165,6 +165,10 @@ h2.band-title {
   color: var(--headline);
 }
 
+// The section intros are written as markdown, so .band-sub is a div holding a
+// paragraph rather than the paragraph itself. Its own margin does the spacing;
+// the paragraph inside adds none. The two that are still filled in by
+// JavaScript stay <p class="band-sub">, which this rule covers either way.
 .band-sub {
   max-width: 62ch;
   margin: 0.85rem 0 0;
@@ -172,7 +176,12 @@ h2.band-title {
   font-size: 1.02rem;
 }
 
-.band-sub b { color: var(--bone); font-weight: 600; }
+.band-sub p { margin: 0; }
+
+// markdown emphasis arrives as <strong>
+.band-sub b, .band-sub strong { color: var(--bone); font-weight: 600; }
+
+.band-sub.footnote { font-size: 0.85rem; }
 
 // ---------------------------------------------------------------------------
 // 1. Tip-off
@@ -274,7 +283,9 @@ h1.hero-title .ghost {
   color: var(--mute);
 }
 
-.hero-lede b { color: var(--bone); font-weight: 600; }
+.hero-lede p { margin: 0; }
+
+.hero-lede b, .hero-lede strong { color: var(--bone); font-weight: 600; }
 
 .hero-figures {
   display: flex;
@@ -1039,6 +1050,10 @@ h1.hero-title .ghost {
   font-size: 0.86rem;
   color: var(--bone);
 }
+
+// the example is a markdown div wrapping a paragraph, which .term p would
+// otherwise return to the body's size and colour
+.term .eg p { font-size: inherit; color: inherit; }
 
 .term .eg::before {
   content: "For instance";
