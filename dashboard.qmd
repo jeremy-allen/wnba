@@ -959,8 +959,12 @@ line <- "#2c313c"
 bone <- "#ded8cb"
 mute <- "#969ea9"
 wnba_orange <- "#f57b20"
-wnba_black <- ink
-wnba_tan <- bone
+
+# `wnba_black` and `wnba_tan` were kept here as aliases through the redesign
+# and are gone deliberately. `wnba_black` had meant "a dark colour to draw
+# against a light page", and pointing it at the page's own ink turned a
+# highlighted line in the scoring race invisible. A name that means the
+# opposite of what it says is worse than no name.
 
 court_ratio <- 1/1.88
 
@@ -1174,10 +1178,13 @@ ggplotly(
   race_plot,
   tooltip = c("athlete", "game_date", "cum_points")
 ) |>
+  # White and thick. This used to highlight in `wnba_black`, which worked
+  # against a light page and now names the page's own ink -- a selected line
+  # was being drawn near-black on a near-black panel and disappeared.
   highlight(
-    color = wnba_black,
-    opacityDim = 0.6,
-    selected = attrs_selected(line = list(width = 3))
+    color = "#ffffff",
+    opacityDim = 0.35,
+    selected = attrs_selected(line = list(width = 3.5))
   )
 
 ```
