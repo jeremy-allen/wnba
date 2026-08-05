@@ -447,9 +447,10 @@ h('<h1 class="hero-title">Meet<span class="l2">the <span class="ghost">WNBA</spa
 ```
 
 ::: {.hero-lede}
-New to the league? Start anywhere. Every player has a card below, and clicking
-one fills the panel beside it with her season. The decoder at the foot of the
-page explains what each number means.
+New to the league? Start anywhere. **One player is selected at a time, and
+picking her anywhere picks her everywhere** — from the wall of cards, a
+leaderboard, the record book or the race chart. Her panel opens beside the
+wall. The decoder at the foot of the page explains what each number means.
 :::
 
 ```{r hero-figures}
@@ -499,8 +500,8 @@ h('<div class="ticker"><div class="ticker-track">', finals, finals, "</div></div
 ::: {.band-sub}
 All **`r nrow(players)` players** who have played at least one game this season.
 Sort them by scoring, rebounds, assists, minutes or alphabetically, and filter
-by team. Click a card and the panel beside the wall fills with that player's
-season. That same player is drawn as the thick pale line in the race chart
+by team. **Click a card and the panel beside the wall fills with that player's
+season.** That same player is drawn as the thick pale line in the race chart
 further down.
 :::
 :::
@@ -552,8 +553,8 @@ h('<div class="wall-shell">',
 
 ::: {.band-sub}
 The top ten in each of seven categories. Every bar starts at zero and the
-longest one is the leader, so a bar half as long is half the total. Click a row
-to open that player's panel.
+longest one is the leader, so a bar half as long is half the total. **Click a
+row to open that player's panel.**
 :::
 :::
 
@@ -595,8 +596,8 @@ h('<p class="band-sub footnote" id="board-note"></p>')
 Every line is one player's points, adding up game by game. The eight highest
 scorers are labelled and drawn in their team's colour, and the other
 `r nrow(players) - 8` stay grey. Where a line gets steeper, that player was
-scoring more per game than she had been. **Whichever player is open in the
-panel above is the thick pale line.**
+scoring more per game than she had been. **Click one of the labelled lines to
+open that player's panel, and whoever is open there is the thick pale line.**
 :::
 :::
 
@@ -618,8 +619,8 @@ h('<div class="race-wrap reveal" id="race-anchor">',
 ::: {.band-sub}
 Each card carries the won--lost record, the average points scored and allowed
 per game, and the last ten results as small squares: green for a win, red for a
-loss, oldest on the left. Click a card to filter the wall of players down to
-that team's roster.
+loss, oldest on the left. **Click a card to filter the wall of players down to
+that team's roster.**
 :::
 :::
 
@@ -652,7 +653,7 @@ h('<div id="standings" class="reveal">', tcards, "</div>")
 ::: {.band-sub}
 Everyone who has played a regular-season game since **`r data_from`**, ranked by
 career totals. The players in orange are still playing this season, so their
-totals keep rising. Click one of them to open her panel.
+totals keep rising. **Click one of them to open her panel.**
 :::
 :::
 
@@ -877,7 +878,7 @@ cat(
   '<span>Data through ', data_through, "</span>",
   '<span>Rendered ', fmt_date(Sys.Date()), "</span>",
   '<span>Source: <a href="https://wehoop.sportsdataverse.org/">wehoop</a></span>',
-  '<span>Built with <a href="https://quarto.org">Quarto</a> and R</span>',
+  '<span>Built with R, <a href="https://quarto.org">Quarto</a>, and a bit of custom HTML and JS</span>',
   "</div>",
   sep = ""
 )
