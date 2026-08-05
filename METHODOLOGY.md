@@ -11,7 +11,7 @@ any completed game the mirror is missing and merges it in. It then asserts full
 season coverage and non-NA keys before writing the cache, so a broken fetch
 fails loudly instead of quietly caching a hollow file.
 
-The page carries two dates — at the top, and again in the colophon — and they
+The page carries two dates, once at the top and again in the colophon. They
 answer different questions:
 
 - **Data through** — the most recent game in the data
@@ -27,15 +27,19 @@ Rendering does not fetch anything.
 
 ## What each chapter covers
 
-*Who's who*, *The pecking order*, *The race*, *Fifteen teams* and *Decoder* are
-all **this season only**. *The record book* is the one exception: it ranks
-career totals back to 2004, and marks the players still adding to them.
+*Who's who*, *The pecking order*, *The race*, *Fifteen teams* and *Decoder*
+cover **this season only**. *The record book* is the exception: it ranks career
+totals back to 2004 and marks the players still adding to them.
 
-The league began play in 1997, but these files begin in **2004**. A career
-already under way by then is cut off at that line: Tamika Catchings played from
-2002, and only 2004 onward is counted here. Rows for players who were on court
-in 2004 carry a dagger — some of them, Diana Taurasi among them, were rookies
-that year and lose nothing; for the rest the total is a floor, not a career.
+The league began play in 1997, but these files begin in **2004**, so the record
+book counts only the part of a career that fell in 2004 or later. Tamika
+Catchings played from 2002; her first two seasons are missing from her totals
+here.
+
+Every player who appeared in 2004 carries a dagger, because the data cannot
+distinguish a rookie that year from someone already several seasons in. Diana
+Taurasi was a rookie in 2004 and loses nothing. For the others, the figure
+shown is a lower bound on the career total.
 
 ## Which games count
 
@@ -82,25 +86,27 @@ altogether.
 - **Totals** — the sum of `points` across counted games.
 - **Per game** — total points ÷ games played, using the same definition of
   "played" as above. Games missed never enter the denominator.
-- Each bar in a dossier's game log is one game actually played, on that
-  player's own scale, so the tallest bar is her best night rather than the
-  league's.
+- Each bar in a player's game log is one game she actually played. The bars
+  are scaled to her own highest-scoring game, not to the league's, so bar
+  heights compare games within a player and never across two players.
 
 ## The ten-game qualifier
 
-Ranks shown in a player's dossier, and the *per game* view of the
-leaderboards, are taken among players with **at least ten games**. Season
-totals and the record book have no qualifier — everyone is in.
+The ranks in a player's panel, and the *per game* view of the leaderboards,
+are taken among players with **ten or more games**. Season totals and the
+record book apply no qualifier and include every player.
 
-The threshold exists because a per-game average over two or three games is not
-a measurement of anything. It is also why the wall, when sorted by a per-game
-figure, puts the players who have met it first.
+Ten games is an arbitrary line, but some line is needed: without one, a player
+who appeared twice and scored well in both would be ranked against players who
+have appeared thirty times. The same threshold orders the wall, which lists
+the players who have reached ten games before those who have not.
 
 ## Known differences from ESPN
 
-- **A different qualifier.** ESPN sets its own minimum before ranking a player
-  on a per-game leaderboard, and it is not ten games. Kelsey Plum's 23.6
-  points per game over 13 games ranks third here and is omitted there.
+- **A different qualifier.** ESPN applies its own minimum before ranking a
+  player on a per-game leaderboard, and that minimum is not ten games. Kelsey
+  Plum's 23.6 points per game over 13 games ranks third here and does not
+  appear on ESPN's list at all.
 - **Playoffs are excluded**, so the record book's career totals run below any
   source that includes postseason play.
 - **True shooting percentage** is `points ÷ (2 × (FGA + 0.44 × FTA))`, the

@@ -169,7 +169,7 @@
     var shown = state.all ? list : list.slice(0, FIRST);
     wall.innerHTML = list.length
       ? shown.map(cardHTML).join("")
-      : '<div class="empty">No player by that name</div>';
+      : '<div class="empty">No players match these filters</div>';
 
     more.hidden = list.length <= FIRST;
     more.textContent = state.all
@@ -245,19 +245,28 @@
       '<div class="avg" style="left:' + Math.min(100, (avg / max) * 100) + '%"></div></div></div>';
   }
 
-  /* One plain sentence, because a rank means nothing to a new viewer until it
-     is put next to the size of the league. */
+  /* One plain sentence. A rank means nothing to a new viewer until it is put
+     next to the number of players it was taken from, and the categories are
+     named with the same words as the leaderboard tabs rather than with
+     paraphrases of them. */
   function verdict(p) {
-    var n = D.qualified;
+    var pool = D.qualified + " players with " + D.minGames + " or more games";
     var bits = [];
-    if (p.rk_ppg) bits.push("scores <b>" + f1(p.ppg) + "</b> points a game, " + ord(p.rk_ppg) + " of " + n + " regulars");
-    else bits.push("has played <b>" + p.g + "</b> game" + (p.g === 1 ? "" : "s") + " this season");
+    if (p.rk_ppg) {
+      bits.push("scores <b>" + f1(p.ppg) + "</b> points a game, " + ord(p.rk_ppg) + " of the " + pool);
+    } else {
+      bits.push("has played <b>" + p.g + "</b> game" + (p.g === 1 ? "" : "s") + " this season");
+    }
     var best = null;
-    [["rk_rpg", "rebounding", p.rpg, "rebounds"], ["rk_apg", "passing", p.apg, "assists"],
-     ["rk_bpg", "shot-blocking", p.bpg, "blocks"], ["rk_spg", "ball-stealing", p.spg, "steals"]]
+    [["rk_rpg", "rebounds", p.rpg], ["rk_apg", "assists", p.apg],
+     ["rk_bpg", "blocks", p.bpg], ["rk_spg", "steals", p.spg]]
       .forEach(function (r) { if (p[r[0]] && p[r[0]] <= 15 && (!best || p[r[0]] < p[best[0]])) best = r; });
-    if (best) bits.push("and ranks " + ord(p[best[0]]) + " in " + best[1] + " at <b>" + f1(best[2]) + "</b> " + best[3] + " a game");
-    else if (p.dd > 0) bits.push("with <b>" + p.dd + "</b> double-double" + (p.dd === 1 ? "" : "s"));
+    if (best) {
+      bits.push("and ranks " + ord(p[best[0]]) + " in " + best[1] +
+        " at <b>" + f1(best[2]) + "</b> a game");
+    } else if (p.dd > 0) {
+      bits.push("with <b>" + p.dd + "</b> double-double" + (p.dd === 1 ? "" : "s"));
+    }
     return p.first + " " + bits.join(", ") + ".";
   }
 
@@ -271,7 +280,7 @@
     return '<div class="dos-sec"><h4>Every game this season · points</h4>' +
       '<div class="gamelog" id="gamelog">' + bars + "</div>" +
       '<div class="gamelog-key"><span>' + esc(p.gl[0].d) + '</span>' +
-      '<span>best night · ' + mx + '</span>' +
+      '<span>best game · ' + mx + '</span>' +
       '<span>' + esc(p.gl[p.gl.length - 1].d) + "</span></div></div>";
   }
 
@@ -376,8 +385,8 @@
       });
     });
     document.getElementById("board-note").textContent = (perGame && metric.per)
-      ? "Per game, among the " + D.qualified + " players with at least " + D.minGames + " games."
-      : "Season totals, every player.";
+      ? "Per game, among the " + D.qualified + " players with " + D.minGames + " or more games."
+      : "Season totals, with no minimum number of games.";
   }
 
   board.addEventListener("click", function (e) {
