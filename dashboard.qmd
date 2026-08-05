@@ -405,8 +405,8 @@ h('<div id="progress"></div><div id="tip"></div>')
 
 # the same names the headings carry, so the rail never gives a section a
 # second name
-rail <- c(tipoff = "Tip-off", who = "Who's who", leaders = "The pecking order",
-          `race-band` = "The race", teams = "Fifteen teams",
+rail <- c(tipoff = "Tip-off", who = "Who's who", `race-band` = "The race",
+          leaders = "The pecking order", teams = "Fifteen teams",
           record = "The record book", decoder = "Decoder")
 h('<nav id="rail">', paste0(
   '<a href="#', names(rail), '"><span class="lbl">', rail, '</span><span class="dot"></span></a>',
@@ -502,7 +502,7 @@ All **`r nrow(players)` players** who have played at least one game this season.
 Sort them by scoring, rebounds, assists, minutes or alphabetically, and filter
 by team. **Click a card and the panel beside the wall fills with that player's
 season.** That same player is drawn as the thick pale line in the race chart
-further down.
+directly below.
 :::
 :::
 
@@ -546,6 +546,30 @@ h('<div class="wall-shell">',
 
 :::
 
+::: {#race-band .band}
+
+::: {.band-head .reveal}
+## The race {.band-title}
+
+::: {.band-sub}
+Every line is one player's points, adding up game by game. The eight highest
+scorers are labelled and drawn in their team's colour, and the other
+`r nrow(players) - 8` stay grey. Where a line gets steeper, that player was
+scoring more per game than she had been. **Whoever is open in the panel above
+is the thick pale line, and clicking a labelled line opens that player there.**
+:::
+:::
+
+```{r race-chart}
+#| output: asis
+
+h('<div class="race-wrap reveal" id="race-anchor">',
+  '<svg id="race" viewBox="0 0 1000 430" role="img" aria-label="Cumulative points by date for every player"></svg>',
+  "</div>")
+```
+
+:::
+
 ::: {#leaders .band}
 
 ::: {.band-head .reveal}
@@ -583,30 +607,6 @@ per_toggle <- paste0(
 h('<div class="lead-controls reveal">', lead_tabs, per_toggle, "</div>")
 h('<div id="board" class="reveal"></div>')
 h('<p class="band-sub footnote" id="board-note"></p>')
-```
-
-:::
-
-::: {#race-band .band}
-
-::: {.band-head .reveal}
-## The race {.band-title}
-
-::: {.band-sub}
-Every line is one player's points, adding up game by game. The eight highest
-scorers are labelled and drawn in their team's colour, and the other
-`r nrow(players) - 8` stay grey. Where a line gets steeper, that player was
-scoring more per game than she had been. **Click one of the labelled lines to
-open that player's panel, and whoever is open there is the thick pale line.**
-:::
-:::
-
-```{r race-chart}
-#| output: asis
-
-h('<div class="race-wrap reveal" id="race-anchor">',
-  '<svg id="race" viewBox="0 0 1000 430" role="img" aria-label="Cumulative points by date for every player"></svg>',
-  "</div>")
 ```
 
 :::
