@@ -145,24 +145,16 @@ body.fullcontent {
 
 .band-head { margin-bottom: clamp(1.75rem, 4vh, 3rem); }
 
-.eyebrow {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  margin: 0 0 0.5rem;
-  font-family: var(--display);
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.32em;
-  text-transform: uppercase;
-  color: var(--orange);
-}
-
-.eyebrow::after {
+// A short orange rule where the section label used to sit. It keeps the
+// accent and the vertical rhythm above each heading without naming the
+// section twice.
+.band-head::before {
   content: "";
-  flex: 1;
-  height: 1px;
-  background: linear-gradient(90deg, var(--line), transparent);
+  display: block;
+  width: 46px;
+  height: 3px;
+  margin-bottom: 1.1rem;
+  background: var(--orange);
 }
 
 h2.band-title {
@@ -442,7 +434,7 @@ h1.hero-title .ghost {
 }
 
 // Several crests are near-black and vanish against the chip, so the resting
-// state is a flat white knockout rather than a desaturated logo; the real
+// state is a flat white knockout rather than a desaturated logo, and the real
 // colours come back on hover and while the filter is on.
 .chip img {
   width: 19px; height: 19px;
@@ -468,8 +460,8 @@ h1.hero-title .ghost {
   align-items: start;
 }
 
-// Quarto's page-grid CSS hands out `grid-column` by element type; reset it so
-// the two children land in this shell's own tracks.
+// Quarto's page-grid CSS hands out `grid-column` by element type, so reset it
+// and the two children land in this shell's own tracks.
 .wall-shell > * { grid-column: auto; min-width: 0; }
 
 // One column below 1080. This stays a grid rather than becoming a flex column:
@@ -486,7 +478,7 @@ h1.hero-title .ghost {
 }
 
 // A wall of 225 cards is nine thousand pixels of page, which buries every
-// chapter after it. Giving it its own scrollbar instead would hijack the wheel
+// section after it. Giving it its own scrollbar instead would hijack the wheel
 // for anyone scrolling past with the cursor over the cards, so it opens on a
 // few rows and the rest is one button away.
 .more {

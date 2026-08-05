@@ -25,7 +25,7 @@ Rendering does not fetch anything.
 > zero-length vectors that get padded to NA. The result looks like a complete
 > dataset — right row count, right date range — with no data in it.
 
-## What each chapter covers
+## Which seasons are counted where
 
 *Who's who*, *The pecking order*, *The race*, *Fifteen teams* and *Decoder*
 cover **this season only**. *The record book* is the exception: it ranks career
@@ -33,8 +33,8 @@ totals back to 2004 and marks the players still adding to them.
 
 The league began play in 1997, but these files begin in **2004**, so the record
 book counts only the part of a career that fell in 2004 or later. Tamika
-Catchings played from 2002; her first two seasons are missing from her totals
-here.
+Catchings played from 2002, so her first two seasons are missing from her
+totals here.
 
 Every player who appeared in 2004 carries a dagger, because the data cannot
 distinguish a rookie that year from someone already several seasons in. Diana

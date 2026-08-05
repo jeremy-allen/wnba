@@ -48,7 +48,7 @@ if (config$data_source == "wehoop") {
 
 game_types <- sched |> select(game_id, type_id)
 
-# The two filters below are the load-bearing ones; METHODOLOGY.md explains why.
+# The two filters below are the load-bearing ones, and METHODOLOGY.md explains why.
 # type_id != 4 drops All-Star exhibitions, whose rosters are not real teams.
 # The did_not_play / is.na(points) pair keeps "one row = one game actually
 # played" true, which every per-game average on this page depends on.
@@ -153,7 +153,7 @@ players <- now_dat |>
     ftm = sum(free_throws_made, na.rm = TRUE),
     fta = sum(free_throws_attempted, na.rm = TRUE),
     # a double-double is two of the five counting stats in double figures on
-    # the same night; a triple-double is three
+    # the same night. A triple-double is three of them
     dd = sum(rowSums(cbind(points, rebounds, assists, steals, blocks) >= 10, na.rm = TRUE) >= 2),
     td = sum(rowSums(cbind(points, rebounds, assists, steals, blocks) >= 10, na.rm = TRUE) >= 3),
     .by = athlete_display_name
@@ -383,7 +383,7 @@ payload <- list(
 )
 
 json <- toJSON(payload, dataframe = "rows", auto_unbox = TRUE, na = "null", digits = 4)
-# a literal </script> inside a JSON string would end the tag early; nothing in
+# a literal </script> inside a JSON string would end the tag early. Nothing in
 # this data contains one today, but the escape costs nothing
 json <- gsub("</", "<\\\\/", json, fixed = TRUE)
 
@@ -402,8 +402,8 @@ h <- function(...) cat(..., "\n", sep = "")
 # --- page furniture -------------------------------------------------------
 h('<div id="progress"></div><div id="tip"></div>')
 
-# the same names the chapters carry, so the rail and the headings never give
-# one section two different names
+# the same names the headings carry, so the rail never gives a section a
+# second name
 rail <- c(tipoff = "Tip-off", who = "Who's who", leaders = "The pecking order",
           `race-band` = "The race", teams = "Fifteen teams",
           record = "The record book", decoder = "Decoder")
@@ -455,8 +455,8 @@ h('<div class="hero-kicker"><span class="live">', this_year, ' Regular Season</s
   '<span>Data through ', data_through, "</span></div>")
 h('<h1 class="hero-title">Meet<span class="l2">the <span class="ghost">WNBA</span></span></h1>')
 h('<p class="hero-lede">New to the league? Start anywhere. Every player has a card ',
-  "below; click one and the panel beside it fills with her season. The last chapter ",
-  "explains what each number on it means.</p>")
+  "below, and clicking one fills the panel beside it with her season. The decoder at the ",
+  "foot of the page explains what each number means.</p>")
 h('<div class="hero-figures">',
   figure(nrow(players), "Players"), figure(nrow(teams), "Teams"),
   figure(n_games, "Games played"), figure(n_points, "Points scored"),
@@ -489,12 +489,11 @@ sortbar <- paste0(
 
 h('<section id="who" class="band">')
 h('<div class="band-head reveal">')
-h('<p class="eyebrow">Chapter one</p>')
 h('<h2 class="band-title">Who&rsquo;s who</h2>')
 h('<p class="band-sub">All <b>', nrow(players), " players</b> who have played at least one game ",
   "this season. Sort them by scoring, rebounds, assists, minutes or alphabetically, and filter ",
-  "by team. Click a card and the panel beside the wall fills with that player's season; the ",
-  "same player is drawn as the thick pale line in the race chart below.</p>")
+  "by team. Click a card and the panel beside the wall fills with that player's season. ",
+  "That same player is drawn as the thick pale line in the race chart further down.</p>")
 h("</div>")
 h('<div class="controls reveal">',
   '<input id="search" type="search" placeholder="Search a name or team" autocomplete="off">',
@@ -532,11 +531,10 @@ per_toggle <- paste0(
 
 h('<section id="leaders" class="band">')
 h('<div class="band-head reveal">')
-h('<p class="eyebrow">Chapter two</p>')
 h('<h2 class="band-title">The pecking order</h2>')
 h('<p class="band-sub">The top ten in each of seven categories. Every bar starts at zero and ',
-  "the longest one is the leader, so a bar half as long is half the total. Click a row to load ",
-  "that player into the panel in the previous chapter.</p>")
+  "the longest one is the leader, so a bar half as long is half the total. Click a row to ",
+  "open that player&rsquo;s panel.</p>")
 h("</div>")
 h('<div class="lead-controls reveal">', lead_tabs, per_toggle, "</div>")
 h('<div id="board" class="reveal"></div>')
@@ -546,12 +544,11 @@ h("</section>")
 # --- 4. the race ----------------------------------------------------------
 h('<section id="race-band" class="band">')
 h('<div class="band-head reveal">')
-h('<p class="eyebrow">Chapter three</p>')
 h('<h2 class="band-title">The race</h2>')
 h('<p class="band-sub">Every line is one player&rsquo;s points, adding up game by game. The ',
-  "eight highest scorers are labelled and drawn in their team&rsquo;s colour; the other ",
+  "eight highest scorers are labelled and drawn in their team&rsquo;s colour, and the other ",
   nrow(players) - 8, " stay grey. Where a line gets steeper, that player was scoring more ",
-  "per game than she had been. <b>Whichever player is selected in chapter one is the thick ",
+  "per game than she had been. <b>Whichever player is open in the panel above is the thick ",
   "pale line.</b></p>")
 h("</div>")
 h('<div class="race-wrap reveal" id="race-anchor">',
@@ -575,11 +572,10 @@ tcards <- paste0(
 
 h('<section id="teams" class="band">')
 h('<div class="band-head reveal">')
-h('<p class="eyebrow">Chapter four</p>')
 h('<h2 class="band-title">Fifteen teams</h2>')
 h('<p class="band-sub">Each card carries the won&ndash;lost record, the average points ',
   "scored and allowed per game, and the last ten results as small squares: green for a win, ",
-  "red for a loss, oldest on the left. Click a card to filter the wall in chapter one down ",
+  "red for a loss, oldest on the left. Click a card to filter the wall of players down ",
   "to that team&rsquo;s roster.</p>")
 h("</div>")
 h('<div id="standings" class="reveal">', tcards, "</div>")
@@ -599,11 +595,10 @@ record_tabs <- paste0(
 
 h('<section id="record" class="band">')
 h('<div class="band-head reveal">')
-h('<p class="eyebrow">Chapter five</p>')
 h('<h2 class="band-title">The record book</h2>')
 h('<p class="band-sub">Everyone who has played a regular-season game since <b>', min(dat$season),
   "</b>, ranked by career totals. The players in orange are still playing this season, so ",
-  "their totals are still rising; click one to open her panel in chapter one.</p>")
+  "their totals keep rising. Click one of them to open her panel.</p>")
 h("</div>")
 h('<div class="lead-controls reveal">', record_tabs, "</div>")
 h('<div id="career-board" class="reveal"></div>')
@@ -715,7 +710,7 @@ terms <- paste0(
     paste0("Every per-game figure divides by this number, so it sets what all the others ",
            "mean. A player who missed a month can lead a per-game ranking without having ",
            "been the season&rsquo;s best. Per-game rankings on this page require <b>",
-           MIN_GAMES, " games</b>; season totals have no minimum."),
+           MIN_GAMES, " games</b>, but season totals have no minimum."),
     paste0("<b>", top_gp$name, "</b> ",
            if (top_gp$g >= top_gp_team_games) {
              paste0("has played every game her team has this season, all ", top_gp$g)
@@ -728,7 +723,6 @@ terms <- paste0(
 
 h('<section id="decoder" class="band">')
 h('<div class="band-head reveal">')
-h('<p class="eyebrow">Chapter six</p>')
 h('<h2 class="band-title">Decoder</h2>')
 h('<p class="band-sub">Six terms used throughout this page, each one shown with a player ',
   "from this season rather than an invented example.</p>")
@@ -739,10 +733,8 @@ h("</section>")
 
 ::: {#fineprint .band}
 
-<p class="eyebrow">The fine print</p>
-
 <details>
-<summary>How these numbers were counted</summary>
+<summary>The fine print: how these numbers were counted</summary>
 
 ::: {.method-body}
 
