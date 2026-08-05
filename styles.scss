@@ -1,83 +1,137 @@
 /*-- scss:defaults --*/
 
-$font-size-root: 11px;
-$card-border-width: 0px;
+// The dashboard used to be a light Bootstrap page carrying three unrelated
+// table skins: orange, black and tan. One dark palette set here in
+// `scss:defaults` -- before Bootstrap's own `!default` declarations, which is
+// the only reason these take -- replaces all three and does it without a
+// single `!important` further down.
 
-$navbar-bg: #050707 !default;
-$navbar-fg: #FFFFFF !default;
-$bs-nav-link-hover-color: #FFFFFF !default;
-$bs-nav-link-color: #FFFFFF !default;
-$bs-nav-link-active-color: #f78a37 !default;
-$bs-navbar-nav-link-padding-x: 1rem !default;
+$font-size-root: 12px;
 
-$bslib-spacer: .5rem;
-$bs-card-spacer-y: .5rem;
-$bs-card-spacer-y: .5rem;
+$body-bg: #101318 !default;
+$body-color: #ded8cb !default;
+$link-color: #f57b20 !default;
 
-$card-spacer-x: 2px;
-$card-spacer-y: 10px;
+$card-bg: #171a21 !default;
+$card-border-width: 1px !default;
+$card-border-color: #2c313c !default;
+$card-border-radius: 4px !default;
+$card-cap-bg: #1c2029 !default;
+$card-cap-color: #ded8cb !default;
+$card-spacer-x: 0.75rem !default;
+$card-spacer-y: 0.6rem !default;
+
+$navbar-bg: #0b0e13 !default;
+$navbar-fg: #ded8cb !default;
+$bs-nav-link-color: #ded8cb !default;
+$bs-nav-link-hover-color: #f57b20 !default;
+$bs-nav-link-active-color: #f57b20 !default;
+
+$border-color: #2c313c !default;
+$bslib-spacer: 0.5rem;
 
 /*-- scss:rules --*/
 
-@media (max-width: 1100px) {
-  .bslib-grid {
-      grid-template-rows: minmax(1em, max-content) !important;
-      grid-template-columns: 1fr !important;
-      height: var(--bslib-grid-height-mobile);
-  }
+// One palette for the whole dashboard. Team colours arrive from the data and
+// are applied inline as --team on individual elements, so an accent on a card
+// or a crest is the franchise's own colour rather than a chart default.
+:root {
+  --ink: #101318;
+  --panel: #171a21;
+  --panel-2: #1c2029;
+  --panel-3: #232732;
+  --line: #2c313c;
+
+  --bone: #ded8cb;
+  --headline: #cbc5b8;
+  --mute: #969ea9;
+  --mute-2: #7b8390;
+
+  --orange: #f57b20;
+  --orange-hi: #ff9d5c;
+  --win: #4ec9a0;
+  --loss: #e05c5c;
+
+  --display: "Avenir Next Condensed", "Helvetica Neue Condensed",
+    "Roboto Condensed", "Arial Narrow", "Liberation Sans Narrow", sans-serif;
+
+  --team: var(--orange);
 }
 
-.quarto-dashboard .navbar .navbar-nav .active {
-  background-image: url("images/wnba-logo.png");
-  background-position: left;
-  background-repeat: no-repeat;
-  background-size: 20px;
+// Every numeral here is read against another numeral directly above or below
+// it, so all of them are tabular.
+table,
+.reactable,
+.num {
+  font-variant-numeric: tabular-nums;
 }
 
-.nav-item {
-  min-width: 60px !important;
+::selection {
+  background: var(--orange);
+  color: var(--ink);
 }
 
-// Space the navbar tabs evenly. The min-width above only pads labels short
-// enough to fall under it: "2026" got the extra room, "All Time" and "Methods"
-// did not, so the gap before Methods came out half the size of the others
-// (29px, then 15px). Symmetric link padding spaces every tab the same
-// regardless of label length. Scoped to .navbar-nav so the card tabsets, which
-// use the same Bootstrap classes, keep the min-width.
+// ---------------------------------------------------------------------------
+// Navbar
+// ---------------------------------------------------------------------------
+
+.quarto-dashboard .navbar {
+  border-bottom: 1px solid var(--line);
+}
+
+.quarto-dashboard .navbar .navbar-brand-container .navbar-title {
+  font-family: var(--display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
 .navbar-nav .nav-item {
-  min-width: 0 !important;
+  min-width: 0;
 }
 
 .navbar-nav .nav-link {
-  padding-left: 14px !important;
-  padding-right: 14px !important;
-}
-
-// escape hatch for a selection that filters the visible page to zero rows,
-// inserted into each player-table card header by compare_js and shown only
-// while something is selected. Solid orange so it reads as the one live
-// control on a page whose tables may have just gone empty.
-.card-header .card-clear {
-  margin-left: auto;
-  padding: 2px 10px 3px;
-  border: 0;
-  border-radius: 3px;
-  background: #e96500;
-  color: #ffffff;
-  font-size: 0.8rem;
+  padding-left: 14px;
+  padding-right: 14px;
+  font-family: var(--display);
+  font-size: 1.05rem;
   font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.quarto-dashboard .navbar .navbar-nav .nav-link.active,
+.quarto-dashboard .navbar .navbar-nav .active {
+  color: var(--orange);
+}
+
+// data-freshness stamp appended to the navbar by the `freshness` chunk
+.navbar-stamp {
+  align-self: center;
+  padding-right: 0.75rem;
+  font-size: 0.85rem;
   white-space: nowrap;
-  cursor: pointer;
+  color: var(--mute-2);
 }
 
-.card-header .card-clear:hover,
-.card-header .card-clear:focus {
-  background: #050707;
-  color: #efe3c6;
+// ---------------------------------------------------------------------------
+// Cards
+// ---------------------------------------------------------------------------
+
+.bslib-card {
+  min-width: 250px;
 }
 
-.card-header .card-clear[hidden] {
-  display: none;
+.quarto-dashboard .card-header {
+  padding: 0.45rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--headline);
 }
 
 // the header holds the title and, when active, the clear button at its end
@@ -87,76 +141,293 @@ $card-spacer-y: 10px;
   gap: 0.5rem;
 }
 
-// data-freshness stamp appended to the navbar by the `freshness` chunk
-.navbar-stamp {
-  align-self: center;
-  padding-right: 0.5rem;
-  font-size: 0.8rem;
-  white-space: nowrap;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.nav-link-text {
-  padding-left: 6px !important;
-}
-
-.nav-link:hover, .nav-link:focus, .nav-link:active,
-.navbar .navbar-nav .active {
-  color: #f78a37 !important;
-}
-
-.bslib-card {
-  min-width: 250px !important;
-}
-
-.rt-td-inner {
-    padding: 6px;
-}
-
-.rt-th-inner {
-  padding: 6px;
-}
-
-.rt-table {
-  padding: 0;
-}
-
-.reactable {
-  border: 1px solid hsl(14, 28.80%, 88.40%);
+// escape hatch for a selection that filters the visible page to zero rows,
+// inserted into each player-table card header by compare_js and shown only
+// while something is selected
+.card-header .card-clear {
+  margin-left: auto;
+  padding: 2px 10px 3px;
+  border: 0;
   border-radius: 3px;
-}
-
-.my-header1 {
-  font-size: 1.85rem;
+  background: var(--orange);
+  color: var(--ink);
+  font-family: var(--display);
+  font-size: 0.85rem;
   font-weight: 700;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  cursor: pointer;
 }
 
-.my-header2 {
-  font-size: 1.5rem;
+.card-header .card-clear:hover,
+.card-header .card-clear:focus {
+  background: var(--orange-hi);
+}
+
+.card-header .card-clear[hidden] {
+  display: none;
+}
+
+// Tabsets inside cards. Two rows of eight leaderboard cards collapsed into one
+// card with eight tabs, so these carry more of the page than they used to.
+.quarto-dashboard .card .nav-tabs {
+  border-bottom: 1px solid var(--line);
+}
+
+.quarto-dashboard .card .nav-tabs .nav-link {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 0.3rem 0.85rem;
+  font-family: var(--display);
+  font-size: 1rem;
   font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mute);
 }
 
-.my-header3 {
-  font-size: 1.35rem;
-  font-weight: 600;
-}
-
-.no-bottom-marg {
-  margin-bottom: 0;
-  padding-bottom: 0;
+.quarto-dashboard .card .nav-tabs .nav-link:hover {
+  color: var(--bone);
 }
 
 .quarto-dashboard .card .nav-tabs .nav-link.active {
-  background-color: #050707;
-  border-color: #050707;
-  color: #efe3c6;
+  background-color: transparent;
+  border-bottom-color: var(--orange);
+  color: var(--orange);
 }
 
+// ---------------------------------------------------------------------------
+// Reactable
+//
+// The reactableTheme() in the qmd carries colour; these are the parts the
+// theme cannot reach.
+// ---------------------------------------------------------------------------
+
+.reactable {
+  border: 0;
+}
+
+.rt-td-inner,
+.rt-th-inner {
+  padding: 6px 8px;
+}
+
+.rt-th {
+  font-family: var(--display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+// the expander arrow that opens a player's panel
+.rt-expander-button {
+  color: var(--orange);
+}
+
+// ---------------------------------------------------------------------------
+// Player panel, opened by expanding a row in either player table
+// ---------------------------------------------------------------------------
+
+.dossier {
+  display: flex;
+  gap: 1.25rem;
+  padding: 0.9rem 1rem 1rem;
+  background: var(--panel-3);
+  border-left: 3px solid var(--team);
+}
+
+.dsr-id {
+  flex: 0 0 132px;
+  text-align: center;
+}
+
+.dsr-shot {
+  width: 110px;
+  height: 80px;
+  object-fit: cover;
+  object-position: top center;
+  border-radius: 4px;
+  background: var(--panel-2);
+}
+
+.dsr-name {
+  margin-top: 0.4rem;
+  font-family: var(--display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 0.04em;
+  color: var(--bone);
+}
+
+.dsr-meta {
+  margin-top: 0.15rem;
+  font-size: 0.85rem;
+  color: var(--mute);
+}
+
+.dsr-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.dsr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+  gap: 0.5rem 0.75rem;
+}
+
+.dsr-stat {
+  border-top: 1px solid var(--line);
+  padding-top: 0.25rem;
+}
+
+.dsr-k {
+  display: block;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mute-2);
+}
+
+.dsr-v {
+  display: block;
+  font-family: var(--display);
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--bone);
+}
+
+.dsr-v.lead {
+  color: var(--orange);
+}
+
+.dsr-logtitle {
+  margin: 0.9rem 0 0.3rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mute-2);
+}
+
+// one bar per game actually played, scaled to this player's own best night --
+// so bar heights compare games within a player and never across two players
+.dsr-log {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 44px;
+}
+
+.dsr-bar {
+  flex: 1 1 auto;
+  min-width: 2px;
+  background: var(--team);
+  opacity: 0.55;
+  border-radius: 1px 1px 0 0;
+}
+
+.dsr-bar.won {
+  opacity: 1;
+}
+
+// ---------------------------------------------------------------------------
+// Team cards
+// ---------------------------------------------------------------------------
+
+#standings {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 0.5rem;
+  padding: 0.25rem;
+  overflow-y: auto;
+}
+
+.tcard {
+  display: block;
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--team);
+  border-radius: 3px;
+  background: var(--panel-2);
+  text-align: left;
+  cursor: pointer;
+}
+
+.tcard:hover {
+  background: var(--panel-3);
+}
+
+.tc-top {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.tc-top img {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+}
+
+.tc-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--bone);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tc-rec {
+  font-family: var(--display);
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--team);
+}
+
+.tc-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+  font-size: 0.82rem;
+  color: var(--mute);
+}
+
+.tc-form {
+  display: flex;
+  gap: 2px;
+}
+
+.tc-form i {
+  width: 7px;
+  height: 12px;
+  border-radius: 1px;
+  background: var(--loss);
+}
+
+.tc-form i.w {
+  background: var(--win);
+}
+
+// ---------------------------------------------------------------------------
+// Compare table
+// ---------------------------------------------------------------------------
+
 .compare-hint {
-  padding: 6px;
-  font-size: 0.8rem;
+  padding: 6px 8px;
+  font-size: 0.85rem;
   font-style: italic;
-  color: #4c4c4d;
+  color: var(--mute-2);
 }
 
 #compare-table img {
@@ -164,27 +435,56 @@ $card-spacer-y: 10px;
   margin: 0 auto;
 }
 
-// The Methods page is prose, not charts. Cap the measure so lines stay
-// readable rather than running the full width of the viewport, and lift the
-// type off the 11px root the dense tables need.
-#methods .card-body {
-  max-width: 78ch;
-  padding: 1rem 1.75rem 2.5rem;
-  font-size: 1.4rem;
+.compare-photo {
+  text-align: center;
+}
+
+.compare-team {
+  margin-top: 4px;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  color: var(--mute);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// this one is read across rows rather than scanned down columns, so it gets
+// more room than the tables that are not
+#compare-table .rt-td-inner,
+#compare-table .rt-th-inner {
+  padding: 10px;
+}
+
+// ---------------------------------------------------------------------------
+// Methods and Decoder: prose, not charts
+// ---------------------------------------------------------------------------
+
+#methods .card-body,
+#decoder .card-body {
+  padding: 0.9rem 1.25rem 1.5rem;
+  font-size: 1.15rem;
   line-height: 1.6;
   overflow-y: auto;
+}
+
+#methods .card-body {
+  max-width: 78ch;
 }
 
 // Quarto renders markdown headings inside a card as `div.h4`, not <h2>, so
 // that they cannot be mistaken for dashboard layout. Style that instead.
 #methods .card-body .h4 {
-  margin-top: 2rem;
-  margin-bottom: 0.5rem;
-  padding-bottom: 0.3rem;
-  border-bottom: 1px solid rgba(76, 76, 77, 0.2);
-  font-size: 1.6rem;
-  font-weight: 600;
-  color: #050707;
+  margin-top: 1.75rem;
+  margin-bottom: 0.4rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--display);
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--headline);
 }
 
 #methods .card-body > .h4:first-child {
@@ -196,55 +496,30 @@ $card-spacer-y: 10px;
   margin: 0.6rem 0 1rem;
 }
 
+#methods th,
+#methods td {
+  border-color: var(--line);
+}
+
 #methods blockquote {
   margin: 1rem 0;
   padding: 0.5rem 0 0.5rem 1rem;
-  border-left: 3px solid #f57b20;
-  color: #4c4c4d;
+  border-left: 3px solid var(--orange);
+  color: var(--mute);
 }
 
-// team nickname captioned under each headshot in the compare table
-.compare-photo {
-  text-align: center;
+#methods code,
+#decoder code {
+  background: var(--panel-3);
+  color: var(--orange-hi);
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
 }
 
-.compare-team {
-  margin-top: 4px;
-  font-size: 0.72rem;
-  line-height: 1.2;
-  letter-spacing: 0.02em;
-  color: rgba(239, 227, 198, 0.7);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-// a little more room than the 6px the other tables use -- this one is dense
-// and read across rows rather than scanned down columns
-#compare-table .rt-td-inner,
-#compare-table .rt-th-inner {
-  padding: 10px;
-}
-
-#main-table {
-  margin-top: 3px;
-}
-
-// "Click a row to filter everything" is the one instruction the dashboard
-// depends on, so it is set as a display line rather than a caption: condensed,
-// heavy, uppercase, widely tracked. The stack is all system faces -- Avenir
-// Next Condensed on macOS, Arial Narrow on Windows -- so nothing is fetched at
-// view time, which the embed-resources build would otherwise leave to the
-// viewer's network.
-.card:has(#main-table) > .card-header .card-title,
-.card:has(#all-time-table) > .card-header .card-title {
-  font-family: "Avenir Next Condensed", "Helvetica Neue Condensed",
-    "Roboto Condensed", "Arial Narrow", sans-serif;
-  // matches the navbar title, so the instruction sits at the same level in the
-  // page's hierarchy as "Meet the WNBA" rather than below it
-  font-size: 1.25rem;
-  font-weight: 700;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: #050707;
+@media (max-width: 1100px) {
+  .bslib-grid {
+    grid-template-rows: minmax(1em, max-content) !important;
+    grid-template-columns: 1fr !important;
+    height: var(--bslib-grid-height-mobile);
+  }
 }

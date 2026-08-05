@@ -4,9 +4,7 @@ format:
   dashboard:
     scrolling: true
     embed-resources: true
-theme:
-  - united
-  - styles.scss
+theme: styles.scss
 ---
 
 
@@ -335,6 +333,44 @@ stat <- function(data, col, ...) {
 }
 ```
 
+```{r helpers}
+# ESPN serves headshots at 350px -- 290 KB each -- and crests at 500px, for
+# pictures this page draws at 110px and 26px. Its own combiner endpoint resizes
+# on the CDN and returns the same face at 13 KB. Nothing inlines these, so the
+# full-size versions were a live request per player on every view.
+espn_img <- function(url, w, h = w) {
+  path <- str_replace(url, "^https?://[a-z0-9.]+", "")
+  if_else(
+    is.na(url),
+    NA_character_,
+    paste0("https://a.espncdn.com/combiner/i?img=", path, "&w=", w, "&h=", h)
+  )
+}
+
+# ESPN's brand colours are picked for white backgrounds, so several of them --
+# Dallas navy, Indiana navy, Seattle green -- disappear against a dark page.
+# Lift value and saturation to a floor so every franchise still reads as itself.
+accent <- function(hex) {
+  hex <- ifelse(is.na(hex) | hex == "", "f57b20", hex)
+  map_chr(hex, function(h) {
+    hsv_cols <- rgb2hsv(col2rgb(paste0("#", h)))
+    v <- max(hsv_cols[3, 1], 0.62)
+    s <- if (hsv_cols[2, 1] < 0.06) 0 else max(hsv_cols[2, 1], 0.42)
+    hsv(hsv_cols[1, 1], s, v)
+  })
+}
+
+pct_of <- function(made, att) if_else(att > 0, 100 * made / att, NA_real_)
+
+fmt1 <- function(x) if_else(is.finite(x), sprintf("%.1f", x), "—")
+fmt_pct <- function(x) if_else(is.finite(x), sprintf("%.1f%%", x), "—")
+
+short_date <- function(d) {
+  d <- as.Date(d)
+  paste0(format(d, "%b"), " ", as.integer(format(d, "%d")))
+}
+```
+
 ```{r dataprep}
 
 pps <- dat |>
@@ -382,7 +418,11 @@ doubles <- doubles |>
   arrange(desc(total_points)) |>
   select(athlete, rookie, triple_double, double_double, total_points, pps, everything())
 
-doubles <- SharedData$new(doubles, group = "experience", key = ~athlete)
+# kept as a plain frame under its own name: the career panel behind an expanded
+# row reads from it, and a SharedData wrapper has no columns to read
+doubles_df <- doubles
+
+doubles <- SharedData$new(doubles_df, group = "experience", key = ~athlete)
 
 ```
 
@@ -413,7 +453,10 @@ doubles24 <- doubles24 |>
   arrange(desc(total_points)) |> 
   select(athlete, rookie, everything())
 
-doubles24 <- SharedData$new(doubles24, group = "experience", key = ~athlete)
+# as above: the player panel behind an expanded row needs the plain frame
+doubles24_df <- doubles24
+
+doubles24 <- SharedData$new(doubles24_df, group = "experience", key = ~athlete)
 ```
 
 ```{r comparedata}
@@ -426,7 +469,10 @@ compare_raw <- dat |>
     !is.na(athlete_display_name)
   ) |>
   summarise(
-    headshot = first(athlete_headshot_href[!is.na(athlete_headshot_href)]),
+    # 120px for a 60px slot, so the portrait stays sharp on a retina screen
+    headshot = espn_img(
+      first(athlete_headshot_href[!is.na(athlete_headshot_href)]), 120
+    ),
     # nickname rather than the full display name: it has to read under a 60px
     # photo, where "Golden State Valkyries" wraps to three lines
     team = team_name[which.max(game_date)],
@@ -448,16 +494,13 @@ compare_raw <- dat |>
     .by = athlete_display_name
   )
 
-fmt1 <- function(x) if_else(is.finite(x), sprintf("%.1f", x), "—")
-fmt_pct <- function(x) if_else(is.finite(x), sprintf("%.1f%%", x), "—")
-
 photo_cell <- function(url, team) {
   portrait <- if_else(
     is.na(url),
-    '<div style="width:60px;height:60px;border-radius:50%;background:#efe3c6;margin:0 auto;"></div>',
+    '<div style="width:60px;height:60px;border-radius:50%;background:#232732;margin:0 auto;"></div>',
     paste0(
-      '<img src="', url,
-      '" style="width:60px;height:60px;border-radius:50%;object-fit:cover;background:#ffffff;" loading="lazy">'
+      '<img src="', url, '" width="60" height="60" alt="" ',
+      'style="width:60px;height:60px;border-radius:50%;object-fit:cover;background:#232732;" loading="lazy">'
     )
   )
 
@@ -552,6 +595,238 @@ compare_js <- paste0(
   "  });\n",
   "})();"
 )
+```
+
+```{r profiles}
+# One row per player this season, carrying everything the panel behind an
+# expanded table row shows. The tables themselves stay as they were; this is
+# the detail that used to have nowhere to live.
+season_box <- dat |>
+  filter(season == this_year, type_id == 1, !is.na(athlete_display_name))
+
+profile <- season_box |>
+  summarise(
+    shot = espn_img(first(na.omit(athlete_headshot_href)), 220, 160),
+    logo = espn_img(last(na.omit(team_logo)), 52),
+    color = accent(team_color[which.max(game_date)]),
+    team = team_display_name[which.max(game_date)],
+    pos = first(na.omit(athlete_position_abbreviation)),
+    jersey = first(na.omit(athlete_jersey)),
+    g = n_distinct(game_id, na.rm = TRUE),
+    mins = sum(minutes, na.rm = TRUE),
+    pts = sum(points, na.rm = TRUE),
+    reb = sum(rebounds, na.rm = TRUE),
+    ast = sum(assists, na.rm = TRUE),
+    stl = sum(steals, na.rm = TRUE),
+    blk = sum(blocks, na.rm = TRUE),
+    fgm = sum(field_goals_made, na.rm = TRUE),
+    fga = sum(field_goals_attempted, na.rm = TRUE),
+    tpm = sum(three_point_field_goals_made, na.rm = TRUE),
+    tpa = sum(three_point_field_goals_attempted, na.rm = TRUE),
+    ftm = sum(free_throws_made, na.rm = TRUE),
+    fta = sum(free_throws_attempted, na.rm = TRUE),
+    .by = athlete_display_name
+  ) |>
+  rename(athlete = athlete_display_name) |>
+  mutate(
+    mpg = mins / g, ppg = pts / g, rpg = reb / g,
+    apg = ast / g, spg = stl / g, bpg = blk / g,
+    fgp = pct_of(fgm, fga), tpp = pct_of(tpm, tpa), ftp = pct_of(ftm, fta),
+    # counts a three as three points and includes free throws, so it measures
+    # efficiency across every kind of shot. The 0.44 estimates how many free
+    # throws end a possession.
+    ts = pct_of(pts, 2 * (fga + 0.44 * fta))
+  )
+
+# one bar per game actually played, in date order
+game_log <- season_box |>
+  arrange(athlete_display_name, game_date) |>
+  transmute(
+    athlete = athlete_display_name,
+    d = short_date(game_date),
+    opp = opponent_team_abbreviation,
+    p = as.integer(replace_na(points, 0)),
+    won = team_winner %in% TRUE
+  ) |>
+  nest(log = c(d, opp, p, won))
+
+profile <- profile |> left_join(game_log, by = "athlete")
+
+# indexed by name, so the panel builder is a lookup rather than a filter
+profile_by <- split(profile, profile$athlete)
+
+# the athlete's name behind her franchise's crest, so a table of names is also
+# a table of teams without spending a column on it
+crest_cell <- function(name) {
+  p <- profile_by[[name]]
+  logo <- if (is.null(p) || is.na(p$logo)) NULL else {
+    tags$img(
+      src = p$logo, alt = "", width = 18, height = 18, loading = "lazy",
+      style = "flex:0 0 18px;object-fit:contain"
+    )
+  }
+  div(
+    style = "display:flex;align-items:center;gap:7px",
+    logo,
+    span(style = "white-space:nowrap;overflow:hidden;text-overflow:ellipsis", name)
+  )
+}
+
+stat_cell <- function(k, v, lead = FALSE) {
+  div(
+    class = "dsr-stat",
+    span(class = "dsr-k", k),
+    span(class = if (lead) "dsr-v lead" else "dsr-v", v)
+  )
+}
+
+# The panel Quarto opens under an expanded row. Built with htmltools rather
+# than pasted strings, so the markup cannot come out unbalanced.
+dossier <- function(name) {
+  p <- profile_by[[name]]
+  if (is.null(p)) {
+    return(div(class = "dossier", div(class = "dsr-body", "No games this season.")))
+  }
+
+  gl <- p$log[[1]]
+  top <- max(gl$p, 1)
+  bars <- pmap(
+    list(gl$p, gl$won, gl$d, gl$opp),
+    \(p_, won_, d_, o_) div(
+      class = if (won_) "dsr-bar won" else "dsr-bar",
+      style = paste0("height:", max(round(100 * p_ / top), 3), "%"),
+      title = paste0(d_, " vs ", o_, ": ", p_, " pts", if (won_) " (W)" else " (L)")
+    )
+  )
+
+  div(
+    class = "dossier",
+    style = paste0("--team:", p$color),
+    div(
+      class = "dsr-id",
+      if (is.na(p$shot)) NULL else tags$img(class = "dsr-shot", src = p$shot, alt = "", loading = "lazy"),
+      div(class = "dsr-name", name),
+      div(
+        class = "dsr-meta",
+        paste(
+          c(if (!is.na(p$jersey)) paste0("#", p$jersey), p$pos, p$team),
+          collapse = " · "
+        )
+      )
+    ),
+    div(
+      class = "dsr-body",
+      div(
+        class = "dsr-grid",
+        stat_cell("Games", p$g),
+        stat_cell("Min/G", fmt1(p$mpg)),
+        stat_cell("Pts/G", fmt1(p$ppg), lead = TRUE),
+        stat_cell("Reb/G", fmt1(p$rpg)),
+        stat_cell("Ast/G", fmt1(p$apg)),
+        stat_cell("Stl/G", fmt1(p$spg)),
+        stat_cell("Blk/G", fmt1(p$bpg)),
+        stat_cell("FG%", fmt_pct(p$fgp)),
+        stat_cell("3P%", fmt_pct(p$tpp)),
+        stat_cell("FT%", fmt_pct(p$ftp)),
+        stat_cell("TS%", fmt_pct(p$ts))
+      ),
+      div(
+        class = "dsr-logtitle",
+        paste0("Points, game by game — ", nrow(gl),
+               " played, best ", top, ". Solid bars are wins.")
+      ),
+      div(class = "dsr-log", bars)
+    )
+  )
+}
+```
+
+```{r career-panel}
+# The All Time table's panel. Career totals come from `pdat`, and the bars are
+# `pps` -- points per season -- which was already computed for a sparkline and
+# is reused here at a size worth reading.
+career_by <- split(pdat, pdat$athlete)
+pps_by <- split(pps, pps$athlete_display_name)
+
+career_dossier <- function(name) {
+  c_ <- career_by[[name]]
+  if (is.null(c_)) {
+    return(div(class = "dossier", div(class = "dsr-body", "No regular-season games.")))
+  }
+
+  # active players get their current crest and portrait; everyone else has none
+  # in this data, and an empty slot is better than another player's face
+  p <- profile_by[[name]]
+  seasons_pts <- pps_by[[name]]$pps[[1]]
+  top <- max(seasons_pts, 1)
+  span_years <- as.integer(str_split_1(paste0(c_$seasons, "-", c_$seasons), "-")[1])
+
+  bars <- imap(
+    seasons_pts,
+    \(v, i) div(
+      class = "dsr-bar won",
+      style = paste0("height:", max(round(100 * v / top), 3), "%"),
+      title = paste0(span_years + i - 1, ": ", v, " pts")
+    )
+  )
+
+  div(
+    class = "dossier",
+    style = paste0("--team:", if (is.null(p)) "#f57b20" else p$color),
+    div(
+      class = "dsr-id",
+      if (is.null(p) || is.na(p$shot)) NULL else {
+        tags$img(class = "dsr-shot", src = p$shot, alt = "", loading = "lazy")
+      },
+      div(class = "dsr-name", name),
+      div(class = "dsr-meta", paste(c_$seasons, "·", c_$latest_team))
+    ),
+    div(
+      class = "dsr-body",
+      div(
+        class = "dsr-grid",
+        stat_cell("Seasons", c_$total_seasons),
+        stat_cell("Games", format(c_$total_games, big.mark = ",")),
+        stat_cell("Points", format(c_$total_points, big.mark = ","), lead = TRUE),
+        stat_cell("Pts/G", fmt1(c_$total_points / c_$total_games)),
+        stat_cell("Rebounds", format(c_$total_rebounds, big.mark = ",")),
+        stat_cell("Assists", format(c_$total_assists, big.mark = ",")),
+        stat_cell("Steals", format(c_$total_steals, big.mark = ",")),
+        stat_cell("Blocks", format(c_$total_blocks, big.mark = ",")),
+        stat_cell("Threes", format(c_$threes_made, big.mark = ",")),
+        stat_cell("Turnovers", format(c_$total_turnovers, big.mark = ","))
+      ),
+      div(
+        class = "dsr-logtitle",
+        paste0("Points by season, best ", format(top, big.mark = ","))
+      ),
+      div(class = "dsr-log", bars)
+    )
+  )
+}
+```
+
+```{r standings-prep}
+# `sched.rds` has been loaded on every render and never displayed. One card per
+# franchise: record, points for and against, and the last ten results.
+team_games <- season_box |>
+  distinct(game_id, game_date, team_abbreviation, team_display_name,
+           team_color, team_logo, team_winner, team_score, opponent_team_score)
+
+standings <- team_games |>
+  arrange(game_date) |>
+  summarise(
+    name = last(team_display_name),
+    color = accent(last(team_color)),
+    logo = espn_img(last(team_logo), 52),
+    w = sum(team_winner %in% TRUE),
+    l = sum(team_winner %in% FALSE),
+    pf = mean(team_score, na.rm = TRUE),
+    pa = mean(opponent_team_score, na.rm = TRUE),
+    form = list(tail(if_else(team_winner %in% TRUE, "w", "l"), 10)),
+    .by = team_abbreviation
+  ) |>
+  arrange(desc(w / (w + l)), desc(w))
 ```
 
 ```{r race-prep}
@@ -669,83 +944,146 @@ lg <- 110
 ```
 
 ```{r tableoptions}
-
+# One palette, matching the tokens in styles.scss. The dashboard used to carry
+# three unrelated table skins -- orange, black and tan -- which made two tables
+# side by side look like two different documents.
+ink <- "#101318"
+panel <- "#171a21"
+panel_2 <- "#1c2029"
+panel_3 <- "#232732"
+line <- "#2c313c"
+bone <- "#ded8cb"
+mute <- "#969ea9"
 wnba_orange <- "#f57b20"
-wnba_dark_orange <- "#e96500"
-wnba_tan <- "#efe3c6"
-wnba_gray <- "#4c4c4d"
-wnba_black <- "#050707"
+wnba_black <- ink
+wnba_tan <- bone
 
 court_ratio <- 1/1.88
 
-doubles_theme <- reactableTheme(
-  color = "#FFFFFF",
-  backgroundColor = wnba_orange,
-  borderColor = wnba_tan,
-  highlightColor = wnba_black,
-  inputStyle = list(backgroundColor = wnba_dark_orange),
-  selectStyle = list(backgroundColor = wnba_orange),
-  pageButtonHoverStyle = list(backgroundColor = wnba_black),
-  pageButtonActiveStyle = list(backgroundColor = wnba_black)
+court_theme <- reactableTheme(
+  color = bone,
+  backgroundColor = panel,
+  borderColor = line,
+  stripedColor = panel_2,
+  highlightColor = panel_3,
+  cellPadding = "4px 6px",
+  headerStyle = list(color = mute, borderColor = line),
+  rowSelectedStyle = list(
+    backgroundColor = panel_3,
+    boxShadow = paste0("inset 3px 0 0 ", wnba_orange)
+  ),
+  inputStyle = list(backgroundColor = panel_2, color = bone, borderColor = line),
+  selectStyle = list(backgroundColor = panel_2, color = bone),
+  pageButtonHoverStyle = list(backgroundColor = panel_3),
+  pageButtonActiveStyle = list(backgroundColor = panel_3, color = wnba_orange)
 )
 
-compare_theme <- reactableTheme(
-  color = wnba_tan,
-  backgroundColor = wnba_black,
-  borderColor = wnba_gray
-)
+# The rank cell doubles as the bar: every leaderboard reads at a glance because
+# the longest bar is the leader and one half as long is half the total.
+bar_cell <- function(value, max_value, colour = wnba_orange) {
+  width <- if (is.finite(max_value) && max_value > 0) {
+    paste0(max(3, round(100 * value / max_value)), "%")
+  } else {
+    "0%"
+  }
+  div(
+    style = "display:flex;align-items:center;gap:6px",
+    div(
+      style = paste0(
+        "flex:0 0 46px;height:8px;background:", panel_3, ";border-radius:2px"
+      ),
+      div(style = paste0(
+        "width:", width, ";height:100%;background:", colour, ";border-radius:2px"
+      ))
+    ),
+    span(style = "font-weight:600", format(value, big.mark = ","))
+  )
+}
 
-stat_theme <- reactableTheme(
-  backgroundColor = wnba_tan,
-  borderColor = wnba_tan,
-  highlightColor = wnba_black,
-  rowHighlightStyle = list(color = wnba_tan),
-  inputStyle = list(backgroundColor = "#FFFFFF"),
-  pageButtonHoverStyle = list(backgroundColor = wnba_black, color = wnba_tan),
-  pageButtonActiveStyle = list(backgroundColor = wnba_black)
-)
+# Sixteen near-identical thirty-line chunks collapsed to one call each. The
+# eight leaderboards on a page are now eight tabs of a single card rather than
+# eight cards spread over two rows, which is where the height for the player
+# panels came from.
+stat_card <- function(df, col, label) {
+  top <- max(df[[col]], na.rm = TRUE)
+
+  # `stat()` returns a `total_seasons` column for the career frames and omits it
+  # for the single-season ones, and reactable rejects a colDef naming a column
+  # that is not there. Build the list from what the frame actually has.
+  cols <- list(
+    rank = colDef(name = "#", maxWidth = sm, style = list(color = mute)),
+    athlete = colDef(name = "Athlete", minWidth = 130),
+    total_seasons = colDef(name = "Seasons", maxWidth = md),
+    seasons = colDef(name = "Span", maxWidth = lg, style = list(color = mute))
+  )
+  cols <- cols[intersect(names(cols), names(df))]
+  cols[[col]] <- colDef(
+    name = label,
+    minWidth = 140,
+    cell = function(value) bar_cell(value, top)
+  )
+
+  df |>
+    SharedData$new(key = ~athlete, group = "experience") |>
+    reactable(
+      compact = TRUE,
+      highlight = TRUE,
+      striped = TRUE,
+      filterable = FALSE,
+      defaultPageSize = 15,
+      defaultSorted = list(rank = "asc"),
+      theme = court_theme,
+      columns = cols
+    )
+}
 ```
 
 # `r this_year`
 
-## Row {height=400px}
+## Row {height=470px}
 
-### Column
+### Column {width=44%}
 
 ```{r doubles24}
-#| title: Click rows to filter everything
+#| title: "Expand a row for the player · click it to select her everywhere"
 doubles24 |>
   reactable(
     elementId = "main-table",
-    compact = FALSE,
+    compact = TRUE,
     highlight = TRUE,
+    striped = TRUE,
     filterable = FALSE,
-    defaultPageSize = 20,
+    defaultPageSize = 14,
     selection = "multiple",
     onClick = "select",
     rowStyle = list(cursor = "pointer"),
-    theme = doubles_theme,
+    theme = court_theme,
+    # the panel behind each row: portrait, splits and a game-by-game bar chart
+    details = function(index) dossier(doubles24_df$athlete[index]),
     columns = list(
-      athlete = colDef(name = "Athlete", maxWidth = md, filterable = TRUE),
-      rookie = colDef(name = "Rookie", maxWidth = md, filterable = TRUE),
-      double_double = colDef(name = "Double Dbl", maxWidth = md),
-      triple_double = colDef(name = "Triple Dbl", maxWidth = md),
-      total_points = colDef(name = "Total Points", maxWidth = md),
-      ppg = colDef(
-        name = "Per Game",
-        minWidth = 300,
-        cell = function(values) {
-          sparkline(rev(values), type = "bar", chartRangeMin = 0, chartRangeMax = max(dat$points, na.rm = TRUE), width = 240, barColor = "#ffffff", barWidth = 4, barSpacing = 1, zeroColor = "#999999", nullColor = "#000000")
-        }
+      athlete = colDef(
+        name = "Athlete",
+        minWidth = 150,
+        filterable = TRUE,
+        cell = function(value) crest_cell(value)
       ),
-      position = colDef(name = "Position", filterable = TRUE),
-      latest_team = colDef(name = "Team", filterable = TRUE),
-      seasons_played = colDef(name = "Seasons Played")
+      rookie = colDef(name = "Rk", maxWidth = sm, filterable = TRUE),
+      double_double = colDef(name = "DD", maxWidth = sm),
+      triple_double = colDef(name = "TD", maxWidth = sm),
+      total_points = colDef(
+        name = "Points",
+        minWidth = 120,
+        cell = function(value) bar_cell(value, max(doubles24_df$total_points))
+      ),
+      ppg = colDef(show = FALSE),
+      position = colDef(name = "Pos", maxWidth = md, filterable = TRUE),
+      latest_team = colDef(show = FALSE),
+      seasons_played = colDef(show = FALSE)
     )
   )
 ```
 
-### Column {.tabset}
+### Column {width=56% .tabset}
 
 ```{r compare}
 #| title: Compare
@@ -757,7 +1095,7 @@ htmltools::tagList(
     pagination = FALSE,
     highlight = FALSE,
     compact = TRUE,
-    theme = compare_theme,
+    theme = court_theme,
     defaultColDef = colDef(
       show = FALSE,
       html = TRUE,
@@ -912,241 +1250,121 @@ ggplotly(
 
 ```
 
-## Row {height=300px}
+## Row {height=430px}
+
+### Column {width=62% .tabset}
 
 ```{r tp24}
-tp24 <- stat24_dfs$total_points |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-tp24 |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    defaultSorted = list(rank = "asc"),
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      seasons = colDef(show = FALSE),
-      total_points = colDef(
-        name = "POINTS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
+#| title: Points
+stat_card(stat24_dfs$total_points, "total_points", "Points")
 ```
 
 ```{r ta24}
-ta24 <- stat24_dfs$total_assists |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-ta24 |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    defaultSorted = list(rank = "asc"),
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      seasons = colDef(show = FALSE),
-      total_assists = colDef(
-        name = "ASSISTS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
+#| title: Assists
+stat_card(stat24_dfs$total_assists, "total_assists", "Assists")
 ```
 
 ```{r tr24}
-tr24 <-stat24_dfs$total_rebounds |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-tr24 |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    defaultSorted = list(rank = "asc"),
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      seasons = colDef(show = FALSE),
-      total_rebounds = colDef(
-        name = "REBOUNDS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
+#| title: Rebounds
+stat_card(stat24_dfs$total_rebounds, "total_rebounds", "Rebounds")
 ```
 
 ```{r ts24}
-ts24 <- stat24_dfs$total_steals |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-ts24 |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    defaultSorted = list(rank = "asc"),
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      seasons = colDef(show = FALSE),
-      total_steals = colDef(
-        name = "STEALS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
+#| title: Steals
+stat_card(stat24_dfs$total_steals, "total_steals", "Steals")
 ```
 
-## Row {height=300px}
-
 ```{r tb24}
-tb24 <- stat24_dfs$total_blocks |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-tb24 |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    defaultSorted = list(rank = "asc"),
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      seasons = colDef(show = FALSE),
-      total_blocks = colDef(
-        name = "BLOCKS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
+#| title: Blocks
+stat_card(stat24_dfs$total_blocks, "total_blocks", "Blocks")
 ```
 
 ```{r gm24}
-gm24 <- stat24_dfs$goals_made |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-gm24 |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    defaultSorted = list(rank = "asc"),
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      seasons = colDef(show = FALSE),
-      goals_made = colDef(
-        name = "GOALS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
+#| title: Goals
+stat_card(stat24_dfs$goals_made, "goals_made", "Goals")
 ```
 
 ```{r tm24}
-tm24 <- stat24_dfs$threes_made |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-tm24 |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    defaultSorted = list(rank = "asc"),
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      seasons = colDef(show = FALSE),
-      threes_made = colDef(
-        name = "THREES",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
+#| title: Threes
+stat_card(stat24_dfs$threes_made, "threes_made", "Threes")
 ```
 
 ```{r tt24}
-tt24 <- stat24_dfs$total_turnovers |>
-  SharedData$new(key = ~athlete, group = "experience")
+#| title: Turnovers
+stat_card(stat24_dfs$total_turnovers, "total_turnovers", "Turnovers")
+```
 
-tt24 |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    defaultSorted = list(rank = "asc"),
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      seasons = colDef(show = FALSE),
-      total_turnovers = colDef(
-        name = "T-OVERS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
+### Column {width=38%}
+
+```{r teamcards}
+#| title: "Fifteen teams · won-lost, points for and against, last ten"
+div(
+  id = "standings",
+  pmap(
+    standings,
+    function(team_abbreviation, name, color, logo, w, l, pf, pa, form) {
+      div(
+        class = "tcard",
+        style = paste0("--team:", color),
+        div(
+          class = "tc-top",
+          if (is.na(logo)) NULL else tags$img(src = logo, alt = "", loading = "lazy"),
+          span(class = "tc-name", name),
+          span(class = "tc-rec", paste0(w, "\u2013", l))
+        ),
+        div(
+          class = "tc-line",
+          span(sprintf("%.0f for \u00b7 %.0f against", pf, pa)),
+          span(class = "tc-form", map(form, \(r) tags$i(class = r)))
+        )
       )
-    )
+    }
   )
+)
 ```
 
 # All Time
 
-## Row {height=400px}
+## Row {height=470px}
+
+### Column {width=52%}
 
 ```{r alldoubles}
-#| title: Click rows to filter everything
+#| title: "Expand a row for the career · click it to select her everywhere"
 doubles |>
   reactable(
     elementId = "all-time-table",
-    compact = FALSE,
+    compact = TRUE,
     highlight = TRUE,
+    striped = TRUE,
     filterable = FALSE,
-    defaultPageSize = 20,
+    defaultPageSize = 14,
     selection = "multiple",
     onClick = "select",
     rowStyle = list(cursor = "pointer"),
+    theme = court_theme,
+    details = function(index) career_dossier(doubles_df$athlete[index]),
     columns = list(
-      athlete = colDef(name = "Athlete", maxWidth = md, filterable = TRUE),
-      rookie = colDef(name = "Rookie", maxWidth = md, filterable = TRUE),
-      double_double = colDef(name = "Double Dbl", maxWidth = md),
-      triple_double = colDef(name = "Triple Dbl", maxWidth = md),
-      total_points = colDef(name = "Total Points", maxWidth = md),
-      pps = colDef(
-        name = "Per Season",
-        minWidth = 153,
-        maxWidth = 155,
-        cell = function(values) {
-          sparkline(values, type = "bar", width = 153, chartRangeMin = 0, barColor = "#ffffff", barWidth = 4, barSpacing = 1, zeroColor = "#999999", nullColor = "#000000")
-        }
+      athlete = colDef(name = "Athlete", minWidth = 140, filterable = TRUE),
+      rookie = colDef(name = "Rk", maxWidth = sm, filterable = TRUE),
+      double_double = colDef(name = "DD", maxWidth = sm),
+      triple_double = colDef(name = "TD", maxWidth = sm),
+      total_points = colDef(
+        name = "Points",
+        minWidth = 120,
+        cell = function(value) bar_cell(value, max(doubles_df$total_points))
       ),
-      position = colDef(name = "Position", filterable = TRUE),
-      latest_team = colDef(name = "Team", filterable = TRUE),
-      total_games = colDef(name = "Total Games"),
-      total_seasons = colDef(name = "Total Seasons"),
-      seasons = colDef(name = "Seasons")
-    ),
-    theme = doubles_theme
+      pps = colDef(show = FALSE),
+      position = colDef(show = FALSE),
+      latest_team = colDef(name = "Team", minWidth = 110, filterable = TRUE),
+      total_games = colDef(name = "Games", maxWidth = md),
+      total_seasons = colDef(show = FALSE),
+      seasons = colDef(name = "Span", maxWidth = lg, style = list(color = mute))
+    )
   )
 ```
+
+### Column {width=48%}
 
 ```{r experience}
 seasons_plot <- player_experience |>
@@ -1184,204 +1402,49 @@ ggplotly(seasons_plot, tooltip = c("athlete", "n_seasons", "n_games"))
 
 ```
 
-## Row {height=300px}
+## Row {height=430px}
+
+### Column {.tabset}
 
 ```{r tp}
-tp <- stat_dfs$total_points |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-tp |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      total_seasons = colDef(name = "total seasons", maxWidth = md),
-      seasons = colDef(maxWidth = lg),
-      total_points = colDef(
-        name = "POINTS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
+#| title: Points
+stat_card(stat_dfs$total_points, "total_points", "Points")
 ```
 
 ```{r ta}
-ta <- stat_dfs$total_assists |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-ta |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      total_seasons = colDef(name = "total seasons", maxWidth = md),
-      seasons = colDef(maxWidth = lg),
-      total_assists = colDef(
-        name = "ASSISTS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
+#| title: Assists
+stat_card(stat_dfs$total_assists, "total_assists", "Assists")
 ```
 
 ```{r tr}
-tr <- stat_dfs$total_rebounds |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-tr |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      total_seasons = colDef(name = "total seasons", maxWidth = md),
-      seasons = colDef(maxWidth = lg),
-      total_rebounds = colDef(
-        name = "REBOUNDS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
+#| title: Rebounds
+stat_card(stat_dfs$total_rebounds, "total_rebounds", "Rebounds")
 ```
 
-## Row {height=300px}
-
 ```{r ts}
-ts <-stat_dfs$total_steals |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-ts |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      total_seasons = colDef(name = "total seasons", maxWidth = md),
-      seasons = colDef(maxWidth = lg),
-      total_steals = colDef(
-        name = "STEALS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
+#| title: Steals
+stat_card(stat_dfs$total_steals, "total_steals", "Steals")
 ```
 
 ```{r tb}
-tb <- stat_dfs$total_blocks |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-tb |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      total_seasons = colDef(name = "total seasons", maxWidth = md),
-      seasons = colDef(maxWidth = lg),
-      total_blocks = colDef(
-        name = "BLOCKS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
+#| title: Blocks
+stat_card(stat_dfs$total_blocks, "total_blocks", "Blocks")
 ```
 
 ```{r gm}
-gm <- stat_dfs$goals_made |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-gm |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      total_seasons = colDef(name = "total seasons", maxWidth = md),
-      seasons = colDef(maxWidth = lg),
-      goals_made = colDef(
-        name = "GOALS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
+#| title: Goals
+stat_card(stat_dfs$goals_made, "goals_made", "Goals")
 ```
 
-## Row {height=300px}
-
 ```{r tm}
-tm <- stat_dfs$threes_made |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-tm |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      total_seasons = colDef(name = "total seasons", maxWidth = md),
-      seasons = colDef(maxWidth = lg),
-      threes_made = colDef(
-        name = "THREES",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
+#| title: Threes
+stat_card(stat_dfs$threes_made, "threes_made", "Threes")
 ```
 
 ```{r tt}
-tt <- stat_dfs$total_turnovers |>
-  SharedData$new(key = ~athlete, group = "experience")
-
-tt |> 
-  reactable(
-    compact = TRUE,
-    highlight = TRUE,
-    filterable = FALSE,
-    defaultPageSize = 20,
-    theme = stat_theme,
-    columns = list(
-      rank = colDef(maxWidth = sm),
-      total_seasons = colDef(name = "total seasons", maxWidth = md),
-      seasons = colDef(maxWidth = lg),
-      total_turnovers = colDef(
-        name = "T-OVERS",
-        headerClass = "my-header3",
-        style = list(fontWeight = "bold")
-      )
-    )
-  )
+#| title: Turnovers
+stat_card(stat_dfs$total_turnovers, "total_turnovers", "Turnovers")
 ```
-
 
 # Methods
 
