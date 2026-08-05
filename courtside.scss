@@ -143,19 +143,10 @@ body.fullcontent {
   border-top: 1px solid var(--line-soft);
 }
 
+// Nothing above the heading. The band's own top border and its several
+// centimetres of padding already separate one section from the next, so a
+// rule or a label there is a second divider doing the first one's job.
 .band-head { margin-bottom: clamp(1.75rem, 4vh, 3rem); }
-
-// A short orange rule where the section label used to sit. It keeps the
-// accent and the vertical rhythm above each heading without naming the
-// section twice.
-.band-head::before {
-  content: "";
-  display: block;
-  width: 46px;
-  height: 3px;
-  margin-bottom: 1.1rem;
-  background: var(--orange);
-}
 
 h2.band-title {
   margin: 0;
