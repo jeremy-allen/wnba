@@ -420,7 +420,10 @@ doubles <- doubles |>
   ) |>
   mutate(rookie = if_else(seasons == year(now()), "rookie", ""))  |> 
   arrange(desc(total_points)) |>
-  select(athlete, rookie, triple_double, double_double, total_points, pps, everything())
+  # reactable takes its column order from the frame, not from `columns`, so
+  # this select is where the table's reading order is decided: who she is,
+  # then what she scored, then the doubles she turned it into
+  select(athlete, rookie, total_points, triple_double, double_double, pps, everything())
 
 # kept as a plain frame under its own name: the career panel behind an expanded
 # row reads from it, and a SharedData wrapper has no columns to read
@@ -1506,13 +1509,13 @@ doubles |>
     columns = list(
       athlete = colDef(name = "Athlete", minWidth = 140, filterable = TRUE),
       rookie = colDef(name = "Rk", maxWidth = sm, filterable = TRUE),
-      double_double = colDef(name = "DD", maxWidth = sm),
-      triple_double = colDef(name = "TD", maxWidth = sm),
       total_points = colDef(
         name = "Points",
         minWidth = 120,
         cell = function(value) bar_cell(value, max(doubles_df$total_points))
       ),
+      triple_double = colDef(name = "TD", maxWidth = sm),
+      double_double = colDef(name = "DD", maxWidth = sm),
       pps = colDef(show = FALSE),
       position = colDef(show = FALSE),
       latest_team = colDef(name = "Team", minWidth = 110, filterable = TRUE),
