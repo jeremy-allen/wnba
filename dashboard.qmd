@@ -833,6 +833,91 @@ standings <- team_games |>
   arrange(desc(w / (w + l)), desc(w))
 ```
 
+```{r standings-js}
+# Crosstalk selection keys are athlete names and each card carries its team
+# display name in `data-team`; this map is the bridge between the two. Built
+# from the current-season frame, so selecting an All Time player with no season
+# this year lights no card - correct, since her franchise may not be playing.
+player_team <- doubles24_df |>
+  filter(!is.na(latest_team)) |>
+  distinct(athlete, latest_team)
+
+player_team <- setNames(as.list(player_team$latest_team), player_team$athlete)
+
+standings_js <- paste0(
+  "(function() {\n",
+  "  var teamOf = ", jsonlite::toJSON(player_team, auto_unbox = TRUE), ";\n",
+  "  var reduced = window.matchMedia\n",
+  "    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches\n",
+  "    : false;\n",
+  "  function teamsOf(keys) {\n",
+  "    var out = {};\n",
+  "    (keys || []).forEach(function(k) {\n",
+  "      if (teamOf[k]) { out[teamOf[k]] = true; }\n",
+  "    });\n",
+  "    return out;\n",
+  "  }\n",
+  "  // Removing the class is not enough to replay the animation; the browser\n",
+  "  // only restarts it after the element has been reflowed without it.\n",
+  "  function bounce(card) {\n",
+  "    card.classList.remove('is-bounce');\n",
+  "    void card.offsetWidth;\n",
+  "    card.classList.add('is-bounce');\n",
+  "  }\n",
+  "  // The grid scrolls, so a lit card can be out of sight. scrollIntoView\n",
+  "  // would walk every scrollable ancestor and move the whole dashboard;\n",
+  "  // measuring against the grid's own rect keeps the scroll inside it.\n",
+  "  function reveal(card, grid) {\n",
+  "    var c = card.getBoundingClientRect();\n",
+  "    var g = grid.getBoundingClientRect();\n",
+  "    var delta = 0;\n",
+  "    if (c.top < g.top) { delta = c.top - g.top - 6; }\n",
+  "    else if (c.bottom > g.bottom) { delta = c.bottom - g.bottom + 6; }\n",
+  "    if (!delta) { return; }\n",
+  "    grid.scrollTo({\n",
+  "      top: grid.scrollTop + delta,\n",
+  "      behavior: reduced ? 'auto' : 'smooth'\n",
+  "    });\n",
+  "  }\n",
+  "  window.addEventListener('load', function() {\n",
+  "    var grid = document.getElementById('standings');\n",
+  "    if (!grid) { return; }\n",
+  "    var cards = Array.prototype.slice.call(\n",
+  "      grid.querySelectorAll('.tcard')\n",
+  "    );\n",
+  "    cards.forEach(function(card) {\n",
+  "      card.addEventListener('animationend', function() {\n",
+  "        card.classList.remove('is-bounce');\n",
+  "      });\n",
+  "    });\n",
+  "    var prev = [];\n",
+  "    var handle = new crosstalk.SelectionHandle('experience');\n",
+  "    function apply(value) {\n",
+  "      var keys = value || [];\n",
+  "      var added = keys.filter(function(k) { return prev.indexOf(k) === -1; });\n",
+  "      prev = keys.slice();\n",
+  "      var lit = teamsOf(keys);\n",
+  "      var grew = teamsOf(added);\n",
+  "      var first = null;\n",
+  "      cards.forEach(function(card) {\n",
+  "        var team = card.getAttribute('data-team');\n",
+  "        var was = card.classList.contains('is-selected');\n",
+  "        if (!lit[team]) { card.classList.remove('is-selected'); return; }\n",
+  "        card.classList.add('is-selected');\n",
+  "        // an already-lit card cannot light further, so a second player from\n",
+  "        // the same team gets the bounce instead of a state change\n",
+  "        if (was) { if (grew[team]) { bounce(card); } }\n",
+  "        else if (!first) { first = card; }\n",
+  "      });\n",
+  "      if (first) { reveal(first, grid); }\n",
+  "    }\n",
+  "    handle.on('change', function(e) { apply(e.value); });\n",
+  "    apply(handle.value);\n",
+  "  });\n",
+  "})();"
+)
+```
+
 ```{r race-prep}
 # cumulative points by game date for the scoring race chart
 race <- dat |>
@@ -1153,7 +1238,11 @@ htmltools::tagList(
     class = "compare-hint",
     "Top 10 by total points shown by default — select players in the left table to compare"
   ),
-  htmltools::tags$script(htmltools::HTML(compare_js))
+  htmltools::tags$script(htmltools::HTML(compare_js)),
+  # The team-card script rides along here rather than in the teamcards chunk,
+  # whose tag tree is the one bslib rewrites (see the comment there). Every
+  # page is one HTML document, so a script anywhere reaches #standings.
+  htmltools::tags$script(htmltools::HTML(standings_js))
 )
 ```
 
@@ -1306,6 +1395,9 @@ div(
     function(team_abbreviation, name, color, logo, w, l, pf, pa, form) {
       div(
         class = "tcard",
+        # the selection script matches this against the main table's
+        # latest_team; both are last(team_display_name)
+        `data-team` = name,
         style = paste0("--team:", color),
         div(
           class = "tc-top",

@@ -380,6 +380,43 @@ table,
   background: var(--panel-3);
 }
 
+// Selecting a player lights her team's card: the accent that runs down the
+// left rail runs the whole way round instead. A 1px accent border is faint on
+// a dark card, so the ring doubles its weight; box-shadow rather than a wider
+// border, because the border-box has to stay the size the grid measured.
+#standings .tcard.is-selected {
+  border-color: var(--team);
+  box-shadow: 0 0 0 1px var(--team);
+  background: var(--panel-3);
+}
+
+// A card that is already lit cannot light further, so clicking a second player
+// from the same team bounces it instead. Transform, not any box property, so
+// the pulse cannot push its grid neighbours around.
+#standings .tcard.is-bounce {
+  animation: tcard-bounce 380ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes tcard-bounce {
+  0% {
+    transform: scale(1);
+  }
+
+  40% {
+    transform: scale(1.045);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #standings .tcard.is-bounce {
+    animation: none;
+  }
+}
+
 #standings .tc-top {
   display: flex;
   flex-direction: row;
