@@ -347,13 +347,16 @@ table,
 
 #standings {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
-  // Without this the rows divide the container's height between them instead
-  // of taking their own: fifteen teams over eight rows came out at 42.8px each
-  // against the 48px a card needs, and every card was clipped through its
-  // second line. `min-content` sizes each row to its card and lets the grid
-  // scroll when there is not room for all of them.
-  grid-auto-rows: min-content;
+  // One column: the standings are a list of fifteen teams, and wrapping them
+  // into however many columns the width allowed made a rail read as content.
+  grid-template-columns: 1fr;
+  // A bare `1fr` divides the container's height between the rows instead of
+  // letting them take their own, which is how fifteen teams over eight rows
+  // once came out at 42.8px each against the 48px a card needs, clipped
+  // through the second line. The floor keeps that from happening; the `1fr`
+  // above it spends the rail's full height rather than banking it at the
+  // bottom, and `overflow-y` still catches the short-viewport case.
+  grid-auto-rows: minmax(48px, 1fr);
   align-content: start;
   gap: 0.45rem;
   padding: 0.35rem;

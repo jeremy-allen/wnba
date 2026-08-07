@@ -1159,9 +1159,51 @@ stat_card <- function(df, col, label) {
 
 # `r this_year`
 
-## Row {height=470px}
+## Row
 
-### Column {width=44%}
+### Column {width=17%}
+
+```{r teamcards}
+#| title: "Won-lost, points for and against, last ten"
+
+# bslib walks this tag tree and stamps `html-fill-item html-fill-container` on
+# every node, which turns each card and the row inside it into a column
+# flexbox. The stylesheet answers that by scoping these rules under #standings,
+# which outranks a single class; emitting the markup as text instead only
+# traded the problem for pandoc reading htmltools' indentation as a code block.
+div(
+  id = "standings",
+  pmap(
+    standings,
+    function(team_abbreviation, name, color, logo, w, l, pf, pa, form) {
+      div(
+        class = "tcard",
+        # the selection script matches this against the main table's
+        # latest_team; both are last(team_display_name)
+        `data-team` = name,
+        style = paste0("--team:", color),
+        div(
+          class = "tc-top",
+          if (is.na(logo)) NULL else tags$img(src = logo, alt = "", loading = "lazy"),
+          span(class = "tc-name", name),
+          span(class = "tc-rec", paste0(w, "\u2013", l))
+        ),
+        div(
+          class = "tc-line",
+          span(sprintf("%.0f for \u00b7 %.0f against", pf, pa)),
+          span(class = "tc-form", map(form, \(r) tags$i(class = r)))
+        )
+      )
+    }
+  )
+)
+```
+
+### Column {width=83%}
+
+#### Row {height=470px}
+
+##### Column {width=44%}
 
 ```{r doubles24}
 #| title: "Expand a row for the player · click it to select her everywhere"
@@ -1202,7 +1244,7 @@ doubles24 |>
   )
 ```
 
-### Column {width=56% .tabset}
+##### Column {width=56% .tabset}
 
 ```{r compare}
 #| title: Compare
@@ -1337,9 +1379,9 @@ ggplotly(
 
 ```
 
-## Row {height=585px}
+#### Row {height=585px}
 
-### Column {width=62% .tabset}
+##### Column {.tabset}
 
 ```{r tp24}
 #| title: Points
@@ -1379,44 +1421,6 @@ stat_card(stat24_dfs$threes_made, "threes_made", "Threes")
 ```{r tt24}
 #| title: Turnovers
 stat_card(stat24_dfs$total_turnovers, "total_turnovers", "Turnovers")
-```
-
-### Column {width=38%}
-
-```{r teamcards}
-#| title: "Fifteen teams · won-lost, points for and against, last ten"
-
-# bslib walks this tag tree and stamps `html-fill-item html-fill-container` on
-# every node, which turns each card and the row inside it into a column
-# flexbox. The stylesheet answers that by scoping these rules under #standings,
-# which outranks a single class; emitting the markup as text instead only
-# traded the problem for pandoc reading htmltools' indentation as a code block.
-div(
-  id = "standings",
-  pmap(
-    standings,
-    function(team_abbreviation, name, color, logo, w, l, pf, pa, form) {
-      div(
-        class = "tcard",
-        # the selection script matches this against the main table's
-        # latest_team; both are last(team_display_name)
-        `data-team` = name,
-        style = paste0("--team:", color),
-        div(
-          class = "tc-top",
-          if (is.na(logo)) NULL else tags$img(src = logo, alt = "", loading = "lazy"),
-          span(class = "tc-name", name),
-          span(class = "tc-rec", paste0(w, "\u2013", l))
-        ),
-        div(
-          class = "tc-line",
-          span(sprintf("%.0f for \u00b7 %.0f against", pf, pa)),
-          span(class = "tc-form", map(form, \(r) tags$i(class = r)))
-        )
-      )
-    }
-  )
-)
 ```
 
 # All Time
