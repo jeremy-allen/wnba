@@ -454,8 +454,11 @@ doubles24 <- doubles24 |>
     by = join_by(athlete)
   ) |>
   mutate(rookie = if_else(seasons_played == year(now()), "rookie", ""))  |> 
-  arrange(desc(total_points)) |> 
-  select(athlete, rookie, everything())
+  arrange(desc(total_points)) |>
+  # reactable takes its column order from the frame, not from `columns`, so
+  # this select is where the table's reading order is decided: who she is,
+  # then what she scored, then the doubles she turned it into
+  select(athlete, rookie, total_points, everything())
 
 # as above: the player panel behind an expanded row needs the plain frame
 doubles24_df <- doubles24
@@ -1184,13 +1187,13 @@ doubles24 |>
         cell = function(value) crest_cell(value)
       ),
       rookie = colDef(name = "Rk", maxWidth = sm, filterable = TRUE),
-      double_double = colDef(name = "DD", maxWidth = sm),
-      triple_double = colDef(name = "TD", maxWidth = sm),
       total_points = colDef(
         name = "Points",
         minWidth = 120,
         cell = function(value) bar_cell(value, max(doubles24_df$total_points))
       ),
+      triple_double = colDef(name = "TD", maxWidth = sm),
+      double_double = colDef(name = "DD", maxWidth = sm),
       ppg = colDef(show = FALSE),
       position = colDef(name = "Pos", maxWidth = md, filterable = TRUE),
       latest_team = colDef(show = FALSE),
