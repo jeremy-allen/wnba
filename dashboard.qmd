@@ -1226,7 +1226,7 @@ stat_card <- function(df, col, label) {
 ### Column {width=17%}
 
 ```{r teamcards}
-#| title: "Won-lost, points for and against, last ten"
+#| title: "Click a team to filter the dashboard"
 
 # bslib walks this tag tree and stamps `html-fill-item html-fill-container` on
 # every node, which turns each card and the row inside it into a column
@@ -1252,7 +1252,13 @@ div(
         ),
         div(
           class = "tc-line",
-          span(sprintf("%.0f for \u00b7 %.0f against", pf, pa)),
+          # "for and against" left it unsaid whether these were season totals
+          # or averages, and the header that used to name them is now an
+          # instruction. Verbs carry the rate that the nouns did not.
+          span(
+            title = "points scored and allowed, per game",
+            sprintf("scores %.0f \u00b7 allows %.0f", pf, pa)
+          ),
           span(class = "tc-form", map(form, \(r) tags$i(class = r)))
         )
       )
