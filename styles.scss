@@ -393,6 +393,17 @@ table,
   background: var(--panel-3);
 }
 
+// Clicking a card filters the whole dashboard to that team. The fill is what
+// separates "I am the filter" from the selection echo above: color-mix keeps
+// it the team's own hue, at a weight the card's text still reads through. A
+// card can carry both classes at once -- filter to a team, then pick one of
+// its players -- and filled-plus-border is the honest picture of that.
+#standings .tcard.is-filtering {
+  border-color: var(--team);
+  box-shadow: 0 0 0 1px var(--team);
+  background: color-mix(in srgb, var(--team) 22%, var(--panel-2));
+}
+
 // A card that is already lit cannot light further, so clicking a second player
 // from the same team bounces it instead. Transform, not any box property, so
 // the pulse cannot push its grid neighbours around.
@@ -588,5 +599,14 @@ table,
     grid-template-rows: minmax(1em, max-content) !important;
     grid-template-columns: 1fr !important;
     height: var(--bslib-grid-height-mobile);
+  }
+
+  // Below this width bslib stacks the columns, so the rail stops being a rail
+  // and becomes a full-width block at the top of the page. One column of
+  // fifteen teams there is a screen and a half to scroll past before reaching
+  // the table, so let them wrap again and take their own height.
+  #standings {
+    grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+    grid-auto-rows: min-content;
   }
 }
