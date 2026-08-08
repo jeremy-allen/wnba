@@ -1203,6 +1203,36 @@ court_gg <- theme_light() +
     plot.margin = unit(c(16, 28, 12, 20), "points")
   )
 
+# plotly ships one bundle covering every trace type it can draw, and at 3.6 MB
+# it was the largest single thing on this page. Every chart here is a scatter,
+# which the "basic" bundle draws at 1.0 MB. Every chart has to ask for it: the
+# bundle is an html dependency, and one plot left on the full one embeds both.
+#
+# The bundle is named rather than left to `type = "auto"`, which quietly falls
+# back to the full bundle when a chart needs more than basic can draw. Naming it
+# stops the render and says which chart, which is the version worth being told.
+basic_bundle <- function(p) partial_bundle(p, type = "basic")
+
+# Handed an htmltools tag, reactable stores it as a React tag tree -- every
+# element written out as `{"name":...,"attribs":...,"children":[...]}`, about
+# twice the length of the markup it stands for. Handed markup with `html = TRUE`
+# on the column, it stores the markup. Across this page's eighteen tables that
+# is the difference between 5.8 MB and 3.2 MB.
+#
+# The builders still return tags, so they still cannot come out unbalanced; this
+# is the hand-off, and it appears with `html = TRUE` at every site so the pair is
+# always visible together.
+#
+# A tag tree carries no whitespace between elements, and htmltools renders one
+# indented across many lines, so a plain `as.character()` would put a text node
+# between every pair of elements that the page has never had. `indent = FALSE`
+# drops the indents and the substitution drops the line breaks between elements
+# -- only those, since a line break inside text is never both preceded by `>`
+# and followed by `<`.
+markup <- function(x) {
+  gsub(">\n<", "><", doRenderTags(x, indent = FALSE), fixed = TRUE)
+}
+
 # The rank cell doubles as the bar: every leaderboard reads at a glance because
 # the longest bar is the leader and one half as long is half the total.
 bar_cell <- function(value, max_value, colour = wnba_orange) {
@@ -1245,7 +1275,8 @@ stat_card <- function(df, col, label) {
   cols[[col]] <- colDef(
     name = label,
     minWidth = 140,
-    cell = function(value) bar_cell(value, top)
+    html = TRUE,
+    cell = function(value) markup(bar_cell(value, top))
   )
 
   df |>
@@ -1628,20 +1659,29 @@ doubles24 |>
     onClick = "select",
     rowStyle = list(cursor = "pointer"),
     theme = court_theme,
-    # the panel behind each row: portrait, splits and a game-by-game bar chart
-    details = function(index) dossier(doubles24_df$athlete[index]),
+    # the panel behind each row: portrait, splits and a game-by-game bar chart.
+    # A colDef rather than a bare function, which is how `html = TRUE` reaches
+    # the details column -- see the note on `markup` for why it is worth it
+    details = colDef(
+      html = TRUE,
+      details = function(index) markup(dossier(doubles24_df$athlete[index]))
+    ),
     columns = list(
       athlete = colDef(
         name = "Athlete",
         minWidth = 150,
         filterable = TRUE,
-        cell = function(value) crest_cell(value)
+        html = TRUE,
+        cell = function(value) markup(crest_cell(value))
       ),
       rookie = colDef(name = "Rk", maxWidth = sm, filterable = TRUE),
       total_points = colDef(
         name = "Points",
         minWidth = 120,
-        cell = function(value) bar_cell(value, max(doubles24_df$total_points))
+        html = TRUE,
+        cell = function(value) {
+          markup(bar_cell(value, max(doubles24_df$total_points)))
+        }
       ),
       triple_double = colDef(name = "TD", maxWidth = sm),
       double_double = colDef(name = "DD", maxWidth = sm),
@@ -1728,7 +1768,8 @@ ggplotly(
     color = "#ffffff",
     opacityDim = 0.35,
     selected = attrs_selected(line = list(width = 3.5))
-  )
+  ) |>
+  basic_bundle()
 
 ```
 
@@ -1757,7 +1798,8 @@ ggplotly(
     color = "#ffffff",
     opacityDim = 0.35,
     selected = attrs_selected(marker = list(size = 12))
-  )
+  ) |>
+  basic_bundle()
 
 ```
 
@@ -1795,7 +1837,8 @@ ggplotly(
     color = "#ffffff",
     opacityDim = 0.35,
     selected = attrs_selected(marker = list(size = 12))
-  )
+  ) |>
+  basic_bundle()
 
 ```
 
@@ -1894,14 +1937,20 @@ doubles |>
     onClick = "select",
     rowStyle = list(cursor = "pointer"),
     theme = court_theme,
-    details = function(index) career_dossier(doubles_df$athlete[index]),
+    details = colDef(
+      html = TRUE,
+      details = function(index) markup(career_dossier(doubles_df$athlete[index]))
+    ),
     columns = list(
       athlete = colDef(name = "Athlete", minWidth = 140, filterable = TRUE),
       rookie = colDef(name = "Rk", maxWidth = sm, filterable = TRUE),
       total_points = colDef(
         name = "Points",
         minWidth = 120,
-        cell = function(value) bar_cell(value, max(doubles_df$total_points))
+        html = TRUE,
+        cell = function(value) {
+          markup(bar_cell(value, max(doubles_df$total_points)))
+        }
       ),
       triple_double = colDef(name = "TD", maxWidth = sm),
       double_double = colDef(name = "DD", maxWidth = sm),
@@ -1945,7 +1994,8 @@ ggplotly(seasons_plot, tooltip = c("athlete", "n_seasons", "n_games")) |>
     color = "#ffffff",
     opacityDim = 0.35,
     selected = attrs_selected(marker = list(size = 12))
-  )
+  ) |>
+  basic_bundle()
 
 ```
 
@@ -1973,7 +2023,8 @@ ggplotly(chase_plot, tooltip = c("athlete", "career_games", "total_points")) |>
     color = "#ffffff",
     opacityDim = 0.35,
     selected = attrs_selected(line = list(width = 3.5))
-  )
+  ) |>
+  basic_bundle()
 
 ```
 
@@ -1998,7 +2049,8 @@ ggplotly(
     color = "#ffffff",
     opacityDim = 0.35,
     selected = attrs_selected(marker = list(size = 12))
-  )
+  ) |>
+  basic_bundle()
 
 ```
 

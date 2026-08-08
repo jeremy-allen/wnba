@@ -9,7 +9,7 @@ scraps.R
 # data caches: regenerate with `Rscript update_data.R`
 *.rds
 
-# rendered output: ~10 MB per render and git cannot delta-compress it.
+# rendered output: ~8 MB per render and git cannot delta-compress it.
 # published straight from disk with `quarto publish posit-connect-cloud --no-render`
 *.html
 

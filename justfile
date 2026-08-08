@@ -14,9 +14,14 @@ data:
 # going straight from the new .rds files to publishing would push the last
 # build -- made from the previous data -- and report success.
 
+# slim_dashboard.R belongs to the render rather than to the publish: it deletes
+# stylesheets Quarto writes three times over, so the file on disk is the finished
+# one from the moment the render ends. Its own header says when it can go.
+
 # Rebuild dashboard.html from the caches on disk
 render:
     quarto render dashboard.qmd
+    Rscript slim_dashboard.R
 
 # --no-render because rendering on Connect Cloud would take config.yml's
 # `rsconnect` profile, which pulls from wehoop rather than reading the caches.
