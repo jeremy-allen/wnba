@@ -1456,10 +1456,11 @@ franchise_rows <- franchises |>
 # The chart's own page, so it is drawn at the size of one. These three sit
 # together because the label rule below is worked out from all of them.
 lineage_fig_w <- 13
-lineage_fig_h <- 7
-lineage_size <- 3.3
+lineage_fig_h <- 8
+# Thin lines leave room the thick bars did not, so the names are set larger.
+lineage_size <- 3.7
 
-# How wide one character is, in seasons -- the unit the bars are measured in.
+# How wide one character is, in seasons -- the unit the eras are measured in.
 # A character of type averages a little over half its point size across, and
 # `.pt` is ggplot's own conversion from a text size to points.
 lineage_span <- (last_season + 0.35) - (min(franchise_eras$from) - 0.35)
@@ -1468,22 +1469,93 @@ char_seasons <- (0.58 * lineage_size * .pt / 72) /
 
 franchises <- franchises |>
   left_join(select(franchise_rows, lineage, row), by = "lineage") |>
-  # Labels sit at the left end of their bar and read rightward, which works
-  # only while the bar is longer than the name: "San Antonio Stars" is four
+  # Labels sit at the left end of their era and read rightward, which works
+  # only while the era is longer than the name: "San Antonio Stars" is four
   # seasons wide and ran into "Las Vegas Aces" beside it. So measure both in
-  # the same units -- seasons -- and let a name that outgrows its bar hang off
-  # the bar's right end instead, back over ground the bar has already covered.
+  # the same units -- seasons -- and let a name that outgrows its era hang off
+  # the era's right end instead, back over ground the line has already covered.
   # Eras still running have no room to their right at all and do the same.
   #
   # The width of a name is worked out from the chart's own geometry rather than
   # measured off a screenshot, so that resizing the figure or the label moves
   # this with it instead of silently invalidating it.
   mutate(
-    bar_seasons = end - from + 0.7,
+    bar_seasons = end - from + 0.4,
     name_seasons = nchar(era) * char_seasons,
     from_right = (name_seasons > bar_seasons & from != max(from)) |
       from >= last_season - 3,
     .by = lineage
+  )
+
+# A dot at each end of each era. The right-hand end of an era still being
+# played is the exception twice over: 2026 is where the record stops rather
+# than where the franchise did, and that end carries the club's crest instead
+# of a dot -- the one mark on the chart that says who is still out there.
+era_ends <- franchises |>
+  select(era, row, colour, to, from, end) |>
+  pivot_longer(c(from, end), names_to = "which", values_to = "at") |>
+  mutate(still_running = which == "end" & is.na(to))
+
+# ESPN serves the crests from a CDN, and this chart is a static image, so they
+# have to be on disk by the time it is drawn. Fetch each one once and keep it:
+# a render with no network then costs nothing, and the first render costs
+# fifteen small files. Anything that fails to arrive simply keeps its dot, so
+# an offline first render draws the chart it always drew rather than no chart.
+logo_dir <- "logos"
+if (!dir.exists(logo_dir)) dir.create(logo_dir)
+
+logo_url <- dat |>
+  arrange(game_date) |>
+  summarise(url = last(team_logo), .by = team_display_name)
+
+crests <- franchises |>
+  filter(is.na(to)) |>
+  select(era, row, end) |>
+  left_join(logo_url, by = c("era" = "team_display_name")) |>
+  mutate(
+    file = file.path(logo_dir, paste0(str_replace_all(tolower(era), "[^a-z]+", "-"), ".png")),
+    image = map2(espn_img(url, 96), file, function(src, dest) {
+      if (!file.exists(dest)) {
+        try(curl::curl_download(src, dest), silent = TRUE)
+      }
+      if (file.exists(dest)) {
+        try(as.raster(png::readPNG(dest)), silent = TRUE)
+      } else {
+        NULL
+      }
+    })
+  ) |>
+  filter(map_lgl(image, \(x) inherits(x, "raster")))
+
+# A crest has to come out square, and the two axes are in different units, so
+# its width in seasons is its height in rows converted through the panel's own
+# proportions. The 1.2 and 1.5 are the room the title, subtitle and axis take
+# out of the figure; they only have to be close.
+crest_rows <- 0.86
+row_in <- (lineage_fig_h - 1.5) / (nrow(franchise_rows) + 1.4)
+season_in <- (lineage_fig_w - 1.2) / lineage_span
+crest_seasons <- crest_rows * row_in / season_in
+
+franchises <- franchises |>
+  mutate(
+    # a right-hand label has to clear the crest now standing at that end
+    label_x = case_when(
+      !from_right ~ from - 0.2,
+      is.na(to) ~ end - crest_seasons / 2 - 0.2,
+      .default = end + 0.2
+    )
+  )
+
+# Three kinds of end, not two: an era that finished, an era still being played
+# whose crest arrived, and an era still being played whose crest did not. The
+# last keeps the hollow dot, so a failed download costs a crest and not a mark.
+era_ends <- era_ends |>
+  mutate(
+    mark = case_when(
+      !still_running ~ "closed",
+      era %in% crests$era ~ "crest",
+      .default = "open"
+    )
   )
 ```
 
@@ -2024,22 +2096,52 @@ stat_card(stat_dfs$total_turnovers, "total_turnovers", "Turnovers")
 # silently, and it ignores a mapped hjust, which centred every label and ran
 # the long ones off the left of the panel. Drawn straight, both work.
 lineage_plot <- ggplot(franchises) +
-  # Each era is its own segment, so consecutive eras leave a hairline of
-  # background between them: the break in the bar *is* the rename, drawn by
-  # what is missing rather than by a mark laid on top.
+  # Each era is its own line, dotted at both ends, so the rename shows as two
+  # dots meeting rather than as a mark laid over a continuous bar. Thin, so the
+  # row belongs to the name rather than to the rule under it.
   geom_segment(
-    aes(x = from - 0.35, xend = end + 0.35, y = row, yend = row,
-        colour = I(colour)),
-    linewidth = 4.4
+    aes(x = from, xend = end, y = row, yend = row, colour = I(colour)),
+    linewidth = 0.6
   ) +
+  geom_point(
+    aes(x = at, y = row, colour = I(colour)),
+    data = \(d) filter(era_ends, mark == "closed"),
+    size = 2.1
+  ) +
+  # hollow, because 2026 is where the record stops and not where the club did
+  geom_point(
+    aes(x = at, y = row, colour = I(colour)),
+    data = \(d) filter(era_ends, mark == "open"),
+    size = 2.1, shape = 21, fill = ink, stroke = 0.7
+  ) +
+  # ESPN draws these crests for white paper, so the dark ones -- the Aces, the
+  # Wings -- all but vanish on this page. A pale disc behind every one of them
+  # gives back the background they were designed against, and reads as a badge
+  # rather than as a patch over two special cases.
+  geom_point(
+    aes(x = end, y = row),
+    # a border in the fill's own colour, not `colour = NA`: the filled shapes
+    # are drawn as one path, and a missing border takes the fill with it
+    data = crests, size = 6.4, shape = 21, fill = bone, colour = bone
+  ) +
+  # and the crest for every club still out there, one layer apiece because a
+  # raster annotation takes one image and fixed corners, not a column of them
+  pmap(crests, function(era, row, end, url, file, image) {
+    annotation_raster(
+      image,
+      xmin = end - crest_seasons / 2, xmax = end + crest_seasons / 2,
+      ymin = row - crest_rows / 2, ymax = row + crest_rows / 2,
+      interpolate = TRUE
+    )
+  }) +
   # two layers rather than a mapped hjust, which ggplot takes only as a constant
   geom_text(
-    aes(x = from - 0.35, y = row + 0.5, label = era, colour = I(colour)),
+    aes(x = label_x, y = row + 0.45, label = era, colour = I(colour)),
     data = \(d) filter(d, !from_right),
     hjust = 0, size = lineage_size
   ) +
   geom_text(
-    aes(x = end + 0.35, y = row + 0.5, label = era, colour = I(colour)),
+    aes(x = label_x, y = row + 0.45, label = era, colour = I(colour)),
     data = \(d) filter(d, from_right),
     hjust = 1, size = lineage_size
   ) +
@@ -2047,11 +2149,14 @@ lineage_plot <- ggplot(franchises) +
     breaks = c(1997, 2000, 2005, 2010, 2015, 2020, last_season),
     expand = expansion(mult = 0.015)
   ) +
-  # room above the top bar for its label, which would otherwise sit on the frame
+  # room above the top line for its label, which would otherwise sit on the frame
   scale_y_continuous(expand = expansion(add = c(0.5, 1))) +
   labs(
     title = "Names and Places",
-    subtitle = "each bar is one franchise · a break in it is a new name or a new city",
+    subtitle = paste(
+      "each line is one franchise · a break in it is a new name or a new city",
+      "· a crest is a club still playing"
+    ),
     x = NULL, y = NULL
   ) +
   court_gg +

@@ -12,3 +12,6 @@ scraps.R
 # rendered output: ~10 MB per render and git cannot delta-compress it.
 # published straight from disk with `quarto publish posit-connect-cloud --no-render`
 *.html
+
+# ESPN crests, fetched once and cached for the franchise chart
+logos/
