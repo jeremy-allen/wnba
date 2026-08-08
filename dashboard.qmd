@@ -1263,6 +1263,119 @@ stat_card <- function(df, col, label) {
 }
 ```
 
+```{r franchise-prep}
+# Every franchise the league has had, and every name each one played under.
+# This is the only table on the dashboard typed out by hand, and it is typed
+# out because half of it is older than the evidence: the box scores start in
+# 2004, and Cleveland, Miami, the first Portland, and the moves out of Utah and
+# Orlando had all happened by then. The part the box scores *can* see is checked
+# against them below, so what is taken on trust is only ever the part before
+# 2004 -- and a franchise that quietly changed name since would fail the render
+# rather than sit here wrong.
+franchise_eras <- tribble(
+  ~lineage,    ~era,                       ~from, ~to,
+  "liberty",   "New York Liberty",          1997, NA,
+  "sparks",    "Los Angeles Sparks",        1997, NA,
+  "mercury",   "Phoenix Mercury",           1997, NA,
+  "aces",      "Utah Starzz",               1997, 2002,
+  "aces",      "San Antonio Silver Stars",  2003, 2013,
+  "aces",      "San Antonio Stars",         2014, 2017,
+  "aces",      "Las Vegas Aces",            2018, NA,
+  "sting",     "Charlotte Sting",           1997, 2006,
+  "rockers",   "Cleveland Rockers",         1997, 2003,
+  "comets",    "Houston Comets",            1997, 2008,
+  "monarchs",  "Sacramento Monarchs",       1997, 2009,
+  "wings",     "Detroit Shock",             1998, 2009,
+  "wings",     "Tulsa Shock",               2010, 2015,
+  "wings",     "Dallas Wings",              2016, NA,
+  "mystics",   "Washington Mystics",        1998, NA,
+  "lynx",      "Minnesota Lynx",            1999, NA,
+  "sun",       "Orlando Miracle",           1999, 2002,
+  "sun",       "Connecticut Sun",           2003, NA,
+  "fever",     "Indiana Fever",             2000, NA,
+  "storm",     "Seattle Storm",             2000, NA,
+  "sol",       "Miami Sol",                 2000, 2002,
+  # two unrelated franchises, twenty-four years apart, under one name: ESPN
+  # issues the 2026 team its own id rather than the folded one's, so even the
+  # source treats them as strangers
+  "fire-i",    "Portland Fire",             2000, 2002,
+  "sky",       "Chicago Sky",               2006, NA,
+  "dream",     "Atlanta Dream",             2008, NA,
+  "valkyries", "Golden State Valkyries",    2025, NA,
+  "tempo",     "Toronto Tempo",             2026, NA,
+  "fire-ii",   "Portland Fire",             2026, NA
+)
+
+first_season <- min(dat$season)
+last_season <- max(dat$season)
+
+# The gate. Every era that overlaps the box scores has to appear in them under
+# exactly that name for exactly those seasons, and every name in them has to be
+# an era here -- so a new franchise, or a rename, cannot slip past unrecorded.
+era_check <- franchise_eras |>
+  mutate(end = coalesce(to, last_season)) |>
+  filter(end >= first_season) |>
+  mutate(
+    expect_from = pmax(from, first_season),
+    expect_to = pmin(end, last_season)
+  ) |>
+  left_join(
+    summarise(dat, seen_from = min(season), seen_to = max(season),
+              .by = team_display_name),
+    by = c("era" = "team_display_name")
+  )
+
+stopifnot(
+  "franchise_eras disagrees with the box scores" =
+    isTRUE(all.equal(era_check$expect_from, era_check$seen_from)) &&
+    isTRUE(all.equal(era_check$expect_to, era_check$seen_to)),
+  "a team in the box scores has no era in franchise_eras" =
+    length(setdiff(unique(dat$team_display_name), franchise_eras$era)) == 0
+)
+
+# One franchise, one colour, carried across every name it has answered to --
+# which is what says the four Aces bars are one club and not four. The colour is
+# the one it wears now, so a franchise that has folded has none: those go grey,
+# and the greying is the chart's way of saying the story ended.
+team_hue <- dat |>
+  arrange(game_date) |>
+  summarise(colour = accent(last(team_color)), .by = team_display_name)
+
+franchises <- franchise_eras |>
+  mutate(
+    end = coalesce(to, last_season),
+    active = any(is.na(to)),
+    current = era[which.max(from)],
+    debut = min(from),
+    .by = lineage
+  ) |>
+  left_join(team_hue, by = c("current" = "team_display_name")) |>
+  mutate(colour = if_else(active, colour, mute))
+
+# oldest at the top, and within an arrival year the clubs still playing before
+# the ones that are not, so the page reads down through the league's growth
+franchise_rows <- franchises |>
+  distinct(lineage, debut, active, current) |>
+  arrange(desc(debut), active, desc(current)) |>
+  mutate(row = row_number())
+
+franchises <- franchises |>
+  left_join(select(franchise_rows, lineage, row), by = "lineage") |>
+  # Labels sit at the left end of their bar and read rightward, which works
+  # only while the bar is longer than the name. "San Antonio Stars" is four
+  # seasons wide and ran into "Las Vegas Aces" beside it. A character is about
+  # a quarter of a season wide at this size, measured off the rendered chart,
+  # so a name that outgrows its bar hangs off its bar's right end instead, back
+  # over ground the bar has already covered. Eras still running have no room to
+  # their right at all and do the same.
+  mutate(
+    bar_seasons = end - from + 0.7,
+    name_seasons = nchar(era) * 0.24,
+    from_right = (name_seasons > bar_seasons & from != max(from)) | from >= 2023,
+    .by = lineage
+  )
+```
+
 # `r this_year`
 
 ## Row
@@ -1635,9 +1748,9 @@ ggplotly(seasons_plot, tooltip = c("athlete", "n_seasons", "n_games"))
 
 ```
 
-## Row {height=470px}
+## Row {height=560px}
 
-### Column {.tabset}
+### Column {width=55% .tabset}
 
 ```{r tp}
 #| title: Points
@@ -1677,6 +1790,60 @@ stat_card(stat_dfs$threes_made, "threes_made", "Threes")
 ```{r tt}
 #| title: Turnovers
 stat_card(stat_dfs$total_turnovers, "total_turnovers", "Turnovers")
+```
+
+### Column {width=45%}
+
+```{r franchises}
+#| fig-width: 6.6
+#| fig-height: 5.4
+
+# The page's other two charts go through ggplotly because they answer the
+# crosstalk selection. This one has nothing to answer -- no athlete is a
+# franchise -- and ggplotly charges for the trip: it drops plot.subtitle
+# silently, and it ignores a mapped hjust, which centred every label and ran
+# the long ones off the left of the panel. Drawn straight, both work.
+lineage_plot <- ggplot(franchises) +
+  # Each era is its own segment, so consecutive eras leave a hairline of
+  # background between them: the break in the bar *is* the rename, drawn by
+  # what is missing rather than by a mark laid on top.
+  geom_segment(
+    aes(x = from - 0.35, xend = end + 0.35, y = row, yend = row,
+        colour = I(colour)),
+    linewidth = 2.2
+  ) +
+  # two layers rather than a mapped hjust, which ggplot takes only as a constant
+  geom_text(
+    aes(x = from - 0.35, y = row + 0.38, label = era, colour = I(colour)),
+    data = \(d) filter(d, !from_right),
+    hjust = 0, size = 2.5
+  ) +
+  geom_text(
+    aes(x = end + 0.35, y = row + 0.38, label = era, colour = I(colour)),
+    data = \(d) filter(d, from_right),
+    hjust = 1, size = 2.5
+  ) +
+  scale_x_continuous(
+    breaks = c(1997, 2000, 2005, 2010, 2015, 2020, last_season),
+    expand = expansion(mult = 0.015)
+  ) +
+  # room above the top bar for its label, which would otherwise sit on the frame
+  scale_y_continuous(expand = expansion(add = c(0.5, 1))) +
+  labs(
+    title = "Names and Places",
+    subtitle = "each bar is one franchise · a break in it is a new name or a new city",
+    x = NULL, y = NULL
+  ) +
+  court_gg +
+  theme(
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.text.x = element_text(size = 9),
+    plot.subtitle = element_text(size = 8.5, color = mute)
+  )
+
+lineage_plot
+
 ```
 
 # Methods
