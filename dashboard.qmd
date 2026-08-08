@@ -1269,8 +1269,8 @@ stat_card <- function(df, col, label) {
 # are drawn straight rather than through ggplotly for it.
 
 # --- The Chase: every career's running total ------------------------------
-# One mark per season rather than per game. At game resolution these 136
-# careers are 46,000 marks in a page that already weighs 13 MB, and a running
+# One mark per season rather than per game. At game resolution these 178
+# careers are 56,000 marks in a page that already weighs 13 MB, and a running
 # total is smooth enough that a season's resolution draws the same curve.
 career_seasons <- dat |>
   filter(type_id == 1, !is.na(athlete_display_name)) |>
@@ -1286,11 +1286,11 @@ career_seasons <- dat |>
     .by = athlete_display_name
   )
 
-# 2,000 career points is the line between the pack and the crowd: 136 careers,
+# 1,500 career points is the line between the pack and the crowd: 178 careers,
 # enough that most players worth selecting have a curve to light up, few enough
 # that the curves stay separable.
 chase <- career_seasons |>
-  filter(max(total_points) >= 2000, .by = athlete_display_name) |>
+  filter(max(total_points) >= 1500, .by = athlete_display_name) |>
   rename(athlete = athlete_display_name) |>
   SharedData$new(group = "experience", key = ~athlete)
 
@@ -1958,7 +1958,7 @@ chase_plot <- chase |>
   ggplot(aes(x = career_games, y = total_points, group = athlete)) +
   geom_line(color = wnba_orange, alpha = 0.4, linewidth = 0.5) +
   labs(
-    title = "The Chase — every career worth 2,000 points",
+    title = "The Chase — every career worth 1,500 points",
     x = "Regular Season Games Played",
     y = "Career Points"
   ) +
@@ -1968,7 +1968,7 @@ chase_plot <- chase |>
 ggplotly(chase_plot, tooltip = c("athlete", "career_games", "total_points")) |>
   # White and thick, the same way the Scoring Race lights up a selected line:
   # these curves are drawn in orange at low opacity, and a selected career has
-  # to read against 135 others on a near-black panel.
+  # to read against 177 others on a near-black panel.
   highlight(
     color = "#ffffff",
     opacityDim = 0.35,
