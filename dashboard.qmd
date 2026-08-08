@@ -1359,19 +1359,36 @@ franchise_rows <- franchises |>
   arrange(desc(debut), active, desc(current)) |>
   mutate(row = row_number())
 
+# The chart's own page, so it is drawn at the size of one. These three sit
+# together because the label rule below is worked out from all of them.
+lineage_fig_w <- 13
+lineage_fig_h <- 7
+lineage_size <- 3.3
+
+# How wide one character is, in seasons -- the unit the bars are measured in.
+# A character of type averages a little over half its point size across, and
+# `.pt` is ggplot's own conversion from a text size to points.
+lineage_span <- (last_season + 0.35) - (min(franchise_eras$from) - 0.35)
+char_seasons <- (0.58 * lineage_size * .pt / 72) /
+  ((lineage_fig_w - 0.9) / lineage_span)
+
 franchises <- franchises |>
   left_join(select(franchise_rows, lineage, row), by = "lineage") |>
   # Labels sit at the left end of their bar and read rightward, which works
-  # only while the bar is longer than the name. "San Antonio Stars" is four
-  # seasons wide and ran into "Las Vegas Aces" beside it. A character is about
-  # a quarter of a season wide at this size, measured off the rendered chart,
-  # so a name that outgrows its bar hangs off its bar's right end instead, back
-  # over ground the bar has already covered. Eras still running have no room to
-  # their right at all and do the same.
+  # only while the bar is longer than the name: "San Antonio Stars" is four
+  # seasons wide and ran into "Las Vegas Aces" beside it. So measure both in
+  # the same units -- seasons -- and let a name that outgrows its bar hang off
+  # the bar's right end instead, back over ground the bar has already covered.
+  # Eras still running have no room to their right at all and do the same.
+  #
+  # The width of a name is worked out from the chart's own geometry rather than
+  # measured off a screenshot, so that resizing the figure or the label moves
+  # this with it instead of silently invalidating it.
   mutate(
     bar_seasons = end - from + 0.7,
-    name_seasons = nchar(era) * 0.24,
-    from_right = (name_seasons > bar_seasons & from != max(from)) | from >= 2023,
+    name_seasons = nchar(era) * char_seasons,
+    from_right = (name_seasons > bar_seasons & from != max(from)) |
+      from >= last_season - 3,
     .by = lineage
   )
 ```
@@ -1748,9 +1765,9 @@ ggplotly(seasons_plot, tooltip = c("athlete", "n_seasons", "n_games"))
 
 ```
 
-## Row {height=560px}
+## Row {height=470px}
 
-### Column {width=55% .tabset}
+### Column {.tabset}
 
 ```{r tp}
 #| title: Points
@@ -1792,13 +1809,13 @@ stat_card(stat_dfs$threes_made, "threes_made", "Threes")
 stat_card(stat_dfs$total_turnovers, "total_turnovers", "Turnovers")
 ```
 
-### Column {width=45%}
+# Franchises
 
 ```{r franchises}
-#| fig-width: 6.6
-#| fig-height: 5.4
+#| fig-width: !expr lineage_fig_w
+#| fig-height: !expr lineage_fig_h
 
-# The page's other two charts go through ggplotly because they answer the
+# The dashboard's other two charts go through ggplotly because they answer the
 # crosstalk selection. This one has nothing to answer -- no athlete is a
 # franchise -- and ggplotly charges for the trip: it drops plot.subtitle
 # silently, and it ignores a mapped hjust, which centred every label and ran
@@ -1810,18 +1827,18 @@ lineage_plot <- ggplot(franchises) +
   geom_segment(
     aes(x = from - 0.35, xend = end + 0.35, y = row, yend = row,
         colour = I(colour)),
-    linewidth = 2.2
+    linewidth = 4.4
   ) +
   # two layers rather than a mapped hjust, which ggplot takes only as a constant
   geom_text(
-    aes(x = from - 0.35, y = row + 0.38, label = era, colour = I(colour)),
+    aes(x = from - 0.35, y = row + 0.5, label = era, colour = I(colour)),
     data = \(d) filter(d, !from_right),
-    hjust = 0, size = 2.5
+    hjust = 0, size = lineage_size
   ) +
   geom_text(
-    aes(x = end + 0.35, y = row + 0.38, label = era, colour = I(colour)),
+    aes(x = end + 0.35, y = row + 0.5, label = era, colour = I(colour)),
     data = \(d) filter(d, from_right),
-    hjust = 1, size = 2.5
+    hjust = 1, size = lineage_size
   ) +
   scale_x_continuous(
     breaks = c(1997, 2000, 2005, 2010, 2015, 2020, last_season),
@@ -1838,8 +1855,10 @@ lineage_plot <- ggplot(franchises) +
   theme(
     axis.text.y = element_blank(),
     axis.ticks.y = element_blank(),
-    axis.text.x = element_text(size = 9),
-    plot.subtitle = element_text(size = 8.5, color = mute)
+    axis.text.x = element_text(size = 11),
+    plot.title = element_text(size = 19, color = bone),
+    plot.subtitle = element_text(size = 11, color = mute),
+    plot.margin = unit(c(18, 30, 14, 22), "points")
   )
 
 lineage_plot
