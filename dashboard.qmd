@@ -1538,10 +1538,8 @@ stat_card(stat24_dfs$total_turnovers, "total_turnovers", "Turnovers")
 ##### Column {width=30%}
 
 ```{r champs}
-#| title: "Champions · click a team to light its titles"
+#| title: "Champions"
 
-# "click a team", not "click a team card", so the invitation is worded the way
-# the rail's own header words it
 reactable(
   champions,
   elementId = "champions",
