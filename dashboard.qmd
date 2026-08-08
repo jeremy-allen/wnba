@@ -1263,6 +1263,100 @@ stat_card <- function(df, col, label) {
 }
 ```
 
+```{r alltime-prep}
+# The four charts that sit beside Time on the Court. The two keyed by athlete
+# answer the crosstalk selection; the two that describe the league cannot, and
+# are drawn straight rather than through ggplotly for it.
+
+# --- The Chase: every career's running total ------------------------------
+# One mark per season rather than per game. At game resolution these 136
+# careers are 46,000 marks in a page that already weighs 13 MB, and a running
+# total is smooth enough that a season's resolution draws the same curve.
+career_seasons <- dat |>
+  filter(type_id == 1, !is.na(athlete_display_name)) |>
+  summarise(
+    season_points = sum(points, na.rm = TRUE),
+    season_games = n_distinct(game_id),
+    .by = c(athlete_display_name, season)
+  ) |>
+  arrange(athlete_display_name, season) |>
+  mutate(
+    total_points = cumsum(season_points),
+    career_games = cumsum(season_games),
+    .by = athlete_display_name
+  )
+
+# 2,000 career points is the line between the pack and the crowd: 136 careers,
+# enough that most players worth selecting have a curve to light up, few enough
+# that the curves stay separable.
+chase <- career_seasons |>
+  filter(max(total_points) >= 2000, .by = athlete_display_name) |>
+  rename(athlete = athlete_display_name) |>
+  SharedData$new(group = "experience", key = ~athlete)
+
+# --- Efficiency over a whole career ---------------------------------------
+# The season chart's twin, with the floor raised from 50 attempts to 500: over
+# 22 years a 50-attempt career is a cup of coffee, not a shooting record.
+career_efficiency <- dat |>
+  filter(type_id == 1, !is.na(athlete_display_name)) |>
+  summarise(
+    n_games = n_distinct(game_id, na.rm = TRUE),
+    fga = sum(field_goals_attempted, na.rm = TRUE),
+    fta = sum(free_throws_attempted, na.rm = TRUE),
+    n_points = sum(points, na.rm = TRUE),
+    .by = athlete_display_name
+  ) |>
+  filter(fga >= 500) |>
+  mutate(
+    fga_per_game = round(fga / n_games, 1),
+    ts_pct = round(100 * n_points / (2 * (fga + 0.44 * fta)), 1)
+  ) |>
+  rename(athlete = athlete_display_name) |>
+  SharedData$new(group = "experience", key = ~athlete)
+
+# --- What the league does with the ball ------------------------------------
+# Per team-game, so expansion and a lengthening schedule cannot masquerade as a
+# change in how the game is played.
+league_season <- dat |>
+  filter(type_id == 1) |>
+  summarise(
+    team_games = n_distinct(paste(game_id, team_id)),
+    threes = sum(three_point_field_goals_attempted, na.rm = TRUE),
+    scored = sum(points, na.rm = TRUE),
+    .by = season
+  ) |>
+  transmute(
+    season,
+    `Threes attempted` = threes / team_games,
+    `Points scored` = scored / team_games
+  ) |>
+  pivot_longer(-season, names_to = "measure", values_to = "per_game") |>
+  # threes first: it is the panel the chart is named for
+  mutate(measure = factor(measure, c("Threes attempted", "Points scored")))
+
+# --- Attendance ------------------------------------------------------------
+# Parsed on every render since the schedule was first loaded, and shown
+# nowhere until now. ESPN did not record it before 2013: a handful of games in
+# 2007, 2011 and 2012 carry a figure, and averaging a season off three games
+# would invent a number. So a season has to have counted half its games to be
+# drawn at all, which starts the series at 2013 and drops 2020 -- that one for
+# the honest reason, a season played in a bubble with nobody in the seats.
+attendance <- sched |>
+  filter(season_type == 2, type_id == 1, status_type_completed %in% TRUE) |>
+  mutate(attendance = as.integer(attendance)) |>
+  summarise(
+    counted = sum(attendance > 0, na.rm = TRUE),
+    coverage = mean(attendance > 0, na.rm = TRUE),
+    per_game = mean(attendance[attendance > 0], na.rm = TRUE),
+    .by = season
+  ) |>
+  filter(coverage >= 0.5) |>
+  # 2020 back as a hole rather than as a missing row, so the line breaks there
+  # instead of stepping over it as though nothing happened
+  complete(season = full_seq(season, 1)) |>
+  arrange(season)
+```
+
 ```{r franchise-prep}
 # Every franchise the league has had, and every name each one played under.
 # This is the only table on the dashboard typed out by hand, and it is typed
@@ -1737,9 +1831,10 @@ doubles |>
   )
 ```
 
-### Column {width=48%}
+### Column {width=48% .tabset}
 
 ```{r experience}
+#| title: Time on the Court
 seasons_plot <- player_experience |>
   ggplot(aes(x = n_seasons, y = n_games, group = athlete)) +
   geom_point(size = 2, color = wnba_orange)  +
@@ -1762,6 +1857,114 @@ seasons_plot <- player_experience |>
   )
 
 ggplotly(seasons_plot, tooltip = c("athlete", "n_seasons", "n_games"))
+
+```
+
+```{r chase}
+#| title: The Chase
+# No subtitle on the charts that go through ggplotly: it drops plot.subtitle
+# without a word, so anything written there is written to nobody. What the
+# reader needs is in the title and the axes instead.
+chase_plot <- chase |>
+  ggplot(aes(x = career_games, y = total_points, group = athlete)) +
+  geom_line(color = wnba_orange, alpha = 0.4, linewidth = 0.5) +
+  labs(
+    title = "The Chase — every career worth 2,000 points",
+    x = "Regular Season Games Played",
+    y = "Career Points"
+  ) +
+  court_gg +
+  theme(axis.text.x = element_text(size = 10), aspect.ratio = court_ratio)
+
+ggplotly(chase_plot, tooltip = c("athlete", "career_games", "total_points"))
+
+```
+
+```{r career-efficiency}
+#| title: Efficiency
+career_efficiency_plot <- career_efficiency |>
+  ggplot(aes(x = fga_per_game, y = ts_pct, group = athlete)) +
+  geom_point(size = 2, color = wnba_orange) +
+  labs(
+    title = "A Whole Career's Shooting — 500+ attempts",
+    x = "Field Goal Attempts per Game",
+    y = "True Shooting %"
+  ) +
+  court_gg +
+  theme(axis.text.x = element_text(size = 10), aspect.ratio = court_ratio)
+
+ggplotly(
+  career_efficiency_plot,
+  tooltip = c("athlete", "fga_per_game", "ts_pct")
+)
+
+```
+
+```{r threes}
+#| title: Threes
+#| fig-width: 7
+#| fig-height: 4.6
+
+# Drawn straight, not through ggplotly: nothing here is keyed by athlete, so
+# there is no selection to answer, and drawing it straight keeps the subtitle.
+league_plot <- league_season |>
+  ggplot(aes(x = season, y = per_game)) +
+  geom_line(color = wnba_orange, linewidth = 0.8) +
+  geom_point(color = wnba_orange, size = 1.4) +
+  facet_wrap(~measure, ncol = 1, scales = "free_y") +
+  scale_x_continuous(breaks = seq(2005, last_season, 5)) +
+  expand_limits(y = 0) +
+  labs(
+    title = "The Three-Point Revolution",
+    subtitle = "per team per game · threes have doubled, scoring has not",
+    x = NULL, y = NULL
+  ) +
+  court_gg +
+  theme(
+    axis.text.x = element_text(size = 9),
+    plot.subtitle = element_text(size = 8.5, color = mute),
+    panel.grid.major.y = element_line(color = line, linewidth = 0.3),
+    strip.background = element_rect(fill = panel_3, color = line),
+    strip.text = element_text(color = bone, size = 9)
+  )
+
+league_plot
+
+```
+
+```{r attendance}
+#| title: Attendance
+#| fig-width: 7
+#| fig-height: 4.6
+
+attendance_plot <- attendance |>
+  ggplot(aes(x = season, y = per_game)) +
+  geom_line(color = wnba_orange, linewidth = 0.8) +
+  geom_point(color = wnba_orange, size = 1.6) +
+  annotate(
+    "text", x = 2020, y = 4200, label = "2020\nplayed in\na bubble",
+    size = 2.6, color = mute, lineheight = 0.95
+  ) +
+  scale_x_continuous(breaks = seq(2013, last_season, 3)) +
+  scale_y_continuous(
+    breaks = seq(0, 12000, 3000),
+    labels = \(x) format(x, big.mark = ",")
+  ) +
+  # headroom, so the newest and highest crowd is not drawn against the frame
+  expand_limits(y = c(0, 12000)) +
+  labs(
+    title = "Filling the Arena",
+    subtitle = "average crowd per regular season game · ESPN counted none before 2013",
+    x = NULL, y = NULL
+  ) +
+  court_gg +
+  theme(
+    axis.text.x = element_text(size = 9),
+    plot.subtitle = element_text(size = 8.5, color = mute),
+    panel.grid.major.y = element_line(color = line, linewidth = 0.3)
+  )
+
+attendance_plot
 
 ```
 
