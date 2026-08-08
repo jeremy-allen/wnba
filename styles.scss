@@ -536,6 +536,26 @@ table,
 }
 
 // ---------------------------------------------------------------------------
+// Champions table
+// ---------------------------------------------------------------------------
+
+// Clicking a team card filters the rest of the dashboard to that team's roster;
+// this table is keyed by season instead, so it answers by lighting the years
+// that franchise won. The treatment is the theme's own rowSelectedStyle, so a
+// lit title reads as the same kind of thing as a selected row anywhere else.
+#champions .rt-tr.champ-lit .rt-td {
+  background: var(--panel-3);
+  color: var(--headline);
+  // the fill alone is a half-step above the striped rows it sits between, so
+  // the winning name carries weight as well as colour
+  font-weight: 600;
+}
+
+#champions .rt-tr.champ-lit .rt-td:first-child {
+  box-shadow: inset 3px 0 0 var(--orange);
+}
+
+// ---------------------------------------------------------------------------
 // Methods and Decoder: prose, not charts
 // ---------------------------------------------------------------------------
 

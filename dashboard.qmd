@@ -864,6 +864,38 @@ standings <- team_games |>
   arrange(desc(w / (w + l)), desc(w))
 ```
 
+```{r champions-prep}
+# Every title since 2004, off the schedule that has been loaded on every render
+# and never displayed. `type_id == 17` (FINAL) only exists from 2019 on; before
+# that the finals carry season_type 3 with type_id 1 and the round is named
+# only in the headline, so both paths are needed to reach all 22 seasons.
+finals <- sched |>
+  filter(
+    season_type == 3,
+    status_type_completed %in% TRUE,
+    type_id == 17 |
+      str_detect(toupper(coalesce(notes_headline, "")), "WNBA FINALS|^FINALS")
+  ) |>
+  mutate(
+    winner = if_else(home_winner %in% TRUE, home_display_name, away_display_name)
+  )
+
+champions <- finals |>
+  arrange(season, game_date) |>
+  summarise(champion = last(winner), .by = season) |>
+  arrange(desc(season)) |>
+  # A card carries the franchise's current name; the schedule carries the name
+  # it won under. Detroit Shock is Dallas Wings now, so its two titles light
+  # that card. Sacramento Monarchs folded in 2009 and has no card, so 2005
+  # lights for nobody -- right, not a gap.
+  mutate(
+    franchise = coalesce(
+      unname(c("Detroit Shock" = "Dallas Wings")[champion]),
+      champion
+    )
+  )
+```
+
 ```{r standings-js}
 # Crosstalk selection keys are athlete names and each card carries its team
 # display name in `data-team`; this map is the bridge between the two. Built
@@ -955,12 +987,24 @@ standings_js <- paste0(
   "    // so a team narrows every widget while a row still highlights within it.\n",
   "    var filter = new crosstalk.FilterHandle('experience');\n",
   "    var filtering = null;\n",
+  "    // The champions table is keyed by season, not by athlete, so it cannot\n",
+  "    // join the crosstalk group. It takes the team by hand instead and lights\n",
+  "    // its own rows; reactable re-reads meta on every render, so the highlight\n",
+  "    // survives a sort or a scroll the way a stamped class would not.\n",
+  "    function litChampions(team) {\n",
+  "      if (window.Reactable) {\n",
+  "        Reactable.setMeta('champions', { team: team || null });\n",
+  "      }\n",
+  "    }\n",
   "    function setFiltering(card, team) {\n",
   "      cards.forEach(function(c) { c.classList.remove('is-filtering'); });\n",
-  "      if (!card) { filtering = null; filter.clear(); return; }\n",
+  "      if (!card) {\n",
+  "        filtering = null; filter.clear(); litChampions(null); return;\n",
+  "      }\n",
   "      filtering = team;\n",
   "      card.classList.add('is-filtering');\n",
   "      filter.set(rosterOf[team] || []);\n",
+  "      litChampions(team);\n",
   "    }\n",
   "    cards.forEach(function(card) {\n",
   "      card.addEventListener('click', function() {\n",
@@ -1449,7 +1493,7 @@ ggplotly(
 
 #### Row {height=585px}
 
-##### Column {.tabset}
+##### Column {width=70% .tabset}
 
 ```{r tp24}
 #| title: Points
@@ -1489,6 +1533,39 @@ stat_card(stat24_dfs$threes_made, "threes_made", "Threes")
 ```{r tt24}
 #| title: Turnovers
 stat_card(stat24_dfs$total_turnovers, "total_turnovers", "Turnovers")
+```
+
+##### Column {width=30%}
+
+```{r champs}
+#| title: "Champions · click a team to light its titles"
+
+# "click a team", not "click a team card", so the invitation is worded the way
+# the rail's own header words it
+reactable(
+  champions,
+  elementId = "champions",
+  compact = TRUE,
+  striped = TRUE,
+  highlight = TRUE,
+  sortable = FALSE,
+  pagination = FALSE,
+  theme = court_theme,
+  # `rowClass` runs on every render and reads the meta the team cards set, so
+  # the lit rows follow the filtering card rather than a moment in time
+  rowClass = JS(
+    "function(rowInfo, state) {
+       if (!state.meta || !state.meta.team) { return null; }
+       return rowInfo.values.franchise === state.meta.team ? 'champ-lit' : null;
+     }"
+  ),
+  columns = list(
+    season = colDef(name = "Season", maxWidth = md, style = list(color = mute)),
+    champion = colDef(name = "Champion", minWidth = 150),
+    # carried for the highlight to match on, never shown
+    franchise = colDef(show = FALSE)
+  )
+)
 ```
 
 # All Time
