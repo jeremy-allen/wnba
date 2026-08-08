@@ -1751,7 +1751,13 @@ efficiency_plot <- efficiency |>
 ggplotly(
   efficiency_plot,
   tooltip = c("athlete", "fga_per_game", "ts_pct")
-)
+) |>
+  # White and large, the dot equivalent of the Scoring Race's white line.
+  highlight(
+    color = "#ffffff",
+    opacityDim = 0.35,
+    selected = attrs_selected(marker = list(size = 12))
+  )
 
 ```
 
@@ -1784,7 +1790,12 @@ points_plot <- points |>
 ggplotly(
   points_plot,
   tooltip = c("athlete", "n_games", "n_points")
-)
+) |>
+  highlight(
+    color = "#ffffff",
+    opacityDim = 0.35,
+    selected = attrs_selected(marker = list(size = 12))
+  )
 
 ```
 
@@ -1929,7 +1940,12 @@ seasons_plot <- player_experience |>
     aspect.ratio = court_ratio
   )
 
-ggplotly(seasons_plot, tooltip = c("athlete", "n_seasons", "n_games"))
+ggplotly(seasons_plot, tooltip = c("athlete", "n_seasons", "n_games")) |>
+  highlight(
+    color = "#ffffff",
+    opacityDim = 0.35,
+    selected = attrs_selected(marker = list(size = 12))
+  )
 
 ```
 
@@ -1977,7 +1993,12 @@ career_efficiency_plot <- career_efficiency |>
 ggplotly(
   career_efficiency_plot,
   tooltip = c("athlete", "fga_per_game", "ts_pct")
-)
+) |>
+  highlight(
+    color = "#ffffff",
+    opacityDim = 0.35,
+    selected = attrs_selected(marker = list(size = 12))
+  )
 
 ```
 
