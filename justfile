@@ -20,7 +20,11 @@ render:
 
 # --no-render because rendering on Connect Cloud would take config.yml's
 # `rsconnect` profile, which pulls from wehoop rather than reading the caches.
+#
+# --no-prompt skips the confirm-the-destination step. The destination itself
+# stays in _publish.yml, which already records the id and url; passing --id
+# here as well would put the same identifier in two files to drift apart.
 
 # Upload dashboard.html to Posit Connect Cloud as it stands
 publish:
-    quarto publish posit-connect-cloud dashboard.qmd --no-render
+    quarto publish posit-connect-cloud dashboard.qmd --no-render --no-prompt
