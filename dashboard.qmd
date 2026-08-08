@@ -1949,7 +1949,15 @@ chase_plot <- chase |>
   court_gg +
   theme(axis.text.x = element_text(size = 10), aspect.ratio = court_ratio)
 
-ggplotly(chase_plot, tooltip = c("athlete", "career_games", "total_points"))
+ggplotly(chase_plot, tooltip = c("athlete", "career_games", "total_points")) |>
+  # White and thick, the same way the Scoring Race lights up a selected line:
+  # these curves are drawn in orange at low opacity, and a selected career has
+  # to read against 135 others on a near-black panel.
+  highlight(
+    color = "#ffffff",
+    opacityDim = 0.35,
+    selected = attrs_selected(line = list(width = 3.5))
+  )
 
 ```
 
