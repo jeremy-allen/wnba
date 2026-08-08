@@ -4,12 +4,27 @@ format:
   dashboard:
     scrolling: true
     embed-resources: true
+    # Only three chunks draw through a graphics device -- the charts answering
+    # the crosstalk selection are plotly widgets, untouched by this. All three
+    # are lines, dots and text, which vectorise small and stay sharp at any zoom,
+    # where the default was a 2x raster: 619 KB of base64 becomes 270 KB.
+    fig-format: svg
 theme: styles.scss
+# svglite rather than the `svg` device this format would otherwise pick, which is
+# cairo and writes every glyph as a path -- 76 KB of outlines on a chart of
+# twenty-two points, and not a `<text>` element in the file. svglite writes text
+# as text.
+knitr:
+  opts_chunk:
+    dev: svglite
 ---
 
 
 ```{r packages}
-library(sparkline)
+# the figure device, named in this document's yaml. knitr only needs it
+# installed, but renv's snapshot reads `library()` calls and nothing else, so
+# without this line the lockfile does not know the render depends on it
+library(svglite)
 library(htmltools)
 library(dplyr)
 library(tidyr)
@@ -1213,6 +1228,42 @@ court_gg <- theme_light() +
 # stops the render and says which chart, which is the version worth being told.
 basic_bundle <- function(p) partial_bundle(p, type = "basic")
 
+# ggplotly writes one tooltip string per point, each of them repeating the column
+# names -- `game_date: 2026-05-09<br />cum_points:  19<br />athlete: A'ja Wilson`.
+# That is 0.58 MB of this page, and it reads like a row of a data frame rather
+# than a sentence. A hovertemplate is one string for the whole trace, which
+# plotly fills in from the numbers it is already holding.
+#
+# The athlete's name is the one thing a template cannot read off x and y, and the
+# crosstalk key already carries it per point -- in plotly's order, with plotly's
+# own gaps between groups -- so it is reused as customdata rather than sent a
+# second time. Anything else a template needs is derived from the built trace for
+# the same reason: nothing here is lined up by hand.
+#
+# Every axis arrives from ggplotly with hoverformat ".2f", so each field in a
+# template names the format it wants.
+hover <- function(p, template, custom = function(tr) tr$key) {
+  p <- plotly_build(p)
+  p$x$data <- lapply(p$x$data, function(tr) {
+    tr$customdata <- custom(tr)
+    tr$text <- NULL
+    # `<extra>` is plotly's second hover box, which carries the trace name.
+    # These traces have no name worth showing.
+    tr$hovertemplate <- paste0(template, "<extra></extra>")
+    tr
+  })
+  p
+}
+
+# plotly fills a template from numbers, and a number cannot pluralise the noun
+# that follows it: a third of the careers in Time on the Court have played one
+# season, which read as "1 seasons". Where a count can be one, the counted phrase
+# is built here and travels as customdata instead. It costs 22 KB across the two
+# charts it is needed on.
+counted <- function(n, unit) {
+  paste0(formatC(n, big.mark = ",", format = "d"), " ", unit, ifelse(n == 1, "", "s"))
+}
+
 # Handed an htmltools tag, reactable stores it as a React tag tree -- every
 # element written out as `{"name":...,"attribs":...,"children":[...]}`, about
 # twice the length of the markup it stands for. Handed markup with `html = TRUE`
@@ -1769,7 +1820,19 @@ ggplotly(
     opacityDim = 0.35,
     selected = attrs_selected(line = list(width = 3.5))
   ) |>
-  basic_bundle()
+  basic_bundle() |>
+  # the only chart whose template needs a second field: ggplotly renders a date
+  # scale as a plain numeric axis carrying day numbers, so `%{x}` would read
+  # 20582. The date is taken back off the trace's own x.
+  # "pts" rather than "points" because a first game worth a single point would
+  # otherwise read "1 points", and spelling it out for the twelve places that
+  # happens would cost 56 KB. It is what the dossier's game bars already say.
+  hover(
+    "%{customdata[0]}<br>%{customdata[1]} · %{y:,} pts",
+    custom = function(tr) {
+      unname(Map(c, tr$key, short_date(as.Date(tr$x, origin = "1970-01-01"))))
+    }
+  )
 
 ```
 
@@ -1799,7 +1862,8 @@ ggplotly(
     opacityDim = 0.35,
     selected = attrs_selected(marker = list(size = 12))
   ) |>
-  basic_bundle()
+  basic_bundle() |>
+  hover("%{customdata}<br>%{x:.1f} shots a game · %{y:.1f}% true shooting")
 
 ```
 
@@ -1838,7 +1902,13 @@ ggplotly(
     opacityDim = 0.35,
     selected = attrs_selected(marker = list(size = 12))
   ) |>
-  basic_bundle()
+  basic_bundle() |>
+  hover(
+    "%{customdata[0]}<br>%{customdata[1]} in %{customdata[2]}",
+    custom = function(tr) {
+      unname(Map(c, tr$key, counted(tr$y, "point"), counted(tr$x, "game")))
+    }
+  )
 
 ```
 
@@ -1995,7 +2065,13 @@ ggplotly(seasons_plot, tooltip = c("athlete", "n_seasons", "n_games")) |>
     opacityDim = 0.35,
     selected = attrs_selected(marker = list(size = 12))
   ) |>
-  basic_bundle()
+  basic_bundle() |>
+  hover(
+    "%{customdata[0]}<br>%{customdata[1]} over %{customdata[2]}",
+    custom = function(tr) {
+      unname(Map(c, tr$key, counted(tr$y, "game"), counted(tr$x, "season")))
+    }
+  )
 
 ```
 
@@ -2024,7 +2100,8 @@ ggplotly(chase_plot, tooltip = c("athlete", "career_games", "total_points")) |>
     opacityDim = 0.35,
     selected = attrs_selected(line = list(width = 3.5))
   ) |>
-  basic_bundle()
+  basic_bundle() |>
+  hover("%{customdata}<br>%{y:,} points in %{x:,} games")
 
 ```
 
@@ -2050,7 +2127,8 @@ ggplotly(
     opacityDim = 0.35,
     selected = attrs_selected(marker = list(size = 12))
   ) |>
-  basic_bundle()
+  basic_bundle() |>
+  hover("%{customdata}<br>%{x:.1f} shots a game · %{y:.1f}% true shooting")
 
 ```
 
@@ -2171,6 +2249,11 @@ stat_card(stat_dfs$total_turnovers, "total_turnovers", "Turnovers")
 ```{r franchises}
 #| fig-width: !expr lineage_fig_w
 #| fig-height: !expr lineage_fig_h
+
+# The one chart that still carries rasters: fifteen crests, embedded base64 in
+# the SVG and base64'd again whole by `embed-resources`, which is 164 KB of its
+# 240 KB. Still well under the 401 KB it came to as a 2x png, and the crests were
+# being upscaled from their 96px source at 2x anyway.
 
 # The dashboard's other two charts go through ggplotly because they answer the
 # crosstalk selection. This one has nothing to answer -- no athlete is a
