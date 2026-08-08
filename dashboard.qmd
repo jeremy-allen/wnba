@@ -1487,14 +1487,15 @@ franchises <- franchises |>
     .by = lineage
   )
 
-# A dot at each end of each era. The right-hand end of an era still being
-# played is the exception twice over: 2026 is where the record stops rather
-# than where the franchise did, and that end carries the club's crest instead
-# of a dot -- the one mark on the chart that says who is still out there.
+# A dot where each era finished, and nothing where it began: a line that starts
+# bare and ends on a dot reads in the direction the seasons run, and the start
+# is already marked by the line itself leaving the empty ground to its left.
+# The right-hand end of an era still being played is the exception -- 2026 is
+# where the record stops rather than where the franchise did, so that end
+# carries the club's crest, the one mark that says who is still out there.
 era_ends <- franchises |>
-  select(era, row, colour, to, from, end) |>
-  pivot_longer(c(from, end), names_to = "which", values_to = "at") |>
-  mutate(still_running = which == "end" & is.na(to))
+  select(era, row, colour, to, end) |>
+  mutate(still_running = is.na(to))
 
 # ESPN serves the crests from a CDN, and this chart is a static image, so they
 # have to be on disk by the time it is drawn. Fetch each one once and keep it:
@@ -2096,21 +2097,21 @@ stat_card(stat_dfs$total_turnovers, "total_turnovers", "Turnovers")
 # silently, and it ignores a mapped hjust, which centred every label and ran
 # the long ones off the left of the panel. Drawn straight, both work.
 lineage_plot <- ggplot(franchises) +
-  # Each era is its own line, dotted at both ends, so the rename shows as two
-  # dots meeting rather than as a mark laid over a continuous bar. Thin, so the
-  # row belongs to the name rather than to the rule under it.
+  # Each era is its own line, stopped by a dot, so a rename reads as one era
+  # arriving at its dot and the next setting off from it. Thin, so the row
+  # belongs to the name rather than to the rule under it.
   geom_segment(
     aes(x = from, xend = end, y = row, yend = row, colour = I(colour)),
     linewidth = 0.6
   ) +
   geom_point(
-    aes(x = at, y = row, colour = I(colour)),
+    aes(x = end, y = row, colour = I(colour)),
     data = \(d) filter(era_ends, mark == "closed"),
     size = 2.1
   ) +
   # hollow, because 2026 is where the record stops and not where the club did
   geom_point(
-    aes(x = at, y = row, colour = I(colour)),
+    aes(x = end, y = row, colour = I(colour)),
     data = \(d) filter(era_ends, mark == "open"),
     size = 2.1, shape = 21, fill = ink, stroke = 0.7
   ) +
