@@ -3,8 +3,11 @@
 .RData
 .Ruserdata
 themes
-scraps.R
 .lintr
+
+# scratch analyses, kept on disk and out of the repository
+scraps.R
+how_its_going.R
 
 # data caches: regenerate with `Rscript update_data.R`
 *.rds
