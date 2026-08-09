@@ -1,7 +1,8 @@
 # Shrinking a Quarto dashboard: 14.7 MB → 7.6 MB
 
 A single-file `format: dashboard` with `embed-resources: true`, Quarto 1.10.18,
-R 4.6.1. Six ggplotly charts, eighteen reactables, three device-drawn figures.
+R 4.6.1. Six ggplotly charts, twenty reactables (eighteen of them joined to the crosstalk
+group), three device-drawn figures.
 Measured on the same data throughout; every number below is bytes in the
 rendered `dashboard.html`.
 
