@@ -88,9 +88,12 @@ points per game instead of 21.5, which dropped her out of the comparison table.
 divides by games played on that same definition, so games missed never enter the
 denominator.
 
-📄 **[METHODOLOGY.md](METHODOLOGY.md)**: the full rules, including the known
-differences from ESPN's own leaderboards (no minimum-games qualifier; a
-50-attempt floor on the efficiency scatter; playoffs excluded).
+📄 **[METHODOLOGY.md](METHODOLOGY.md)** states the full rules and the three
+known differences from ESPN's own leaderboards. ESPN requires a minimum number
+of games before it ranks a player on a per-game leaderboard, and this dashboard
+requires none. The efficiency scatter sets its own floor of 50 field-goal
+attempts. Excluding the playoffs puts every career total here below a source
+that counts postseason play.
 
 ---
 
