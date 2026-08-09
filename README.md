@@ -270,7 +270,7 @@ The render step matters to `update`. `quarto publish` runs with `--no-render`
 and uploads `dashboard.html` exactly as it sits on disk, so going straight from
 new data to publishing would upload the previous build and report success.
 
-[renv](https://rstudio.github.io/renv/) pins the R packages; restore them with
+[renv](https://rstudio.github.io/renv/) pins the R packages. Restore them with
 `renv::restore()`. The `library(svglite)` call in the setup chunk exists for the
 *snapshot* rather than for the render, because implicit snapshots read
 `library()` calls and not the YAML that names the device.
