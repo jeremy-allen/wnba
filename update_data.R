@@ -155,6 +155,14 @@ if (length(gap_dates) > 0) {
         warning("could not fetch box score for game ", g, call. = FALSE)
         return(NULL)
       }
+
+      # ESPN returns team_winner as a boolean for most games and as a "true" /
+      # "false" string for the occasional one, and a single string-typed game
+      # makes bind_rows refuse the whole list. Coercing is the right move
+      # regardless of the bind: the bulk mirror stores the column as logical,
+      # and dashboard.qmd counts a win with `team_winner %in% TRUE`, which
+      # reads a character "TRUE" as a loss.
+      out$team_winner <- as.logical(out$team_winner)
       out
     }))
 
