@@ -54,7 +54,7 @@ game the mirror is missing from ESPN directly and merges it in, then asserts
 full season coverage and non-NA keys before writing `dat.rds` and `sched.rds`. A
 broken fetch stops the script rather than caching an incomplete file.
 
-The navbar carries two dates. **Data through** gives the date of the most recent
+The navbar shows two dates. **Data through** gives the date of the most recent
 game in the data, and **Rendered** gives the date the page was last built.
 Because rendering fetches nothing, the two dates diverge whenever the page is
 rebuilt without a data refresh.
@@ -80,10 +80,9 @@ when `did_not_play` is not `TRUE` *and* the row has a stat line (`points` is not
 in 2013; before that, 10–22% of rows per season are inactive players it never
 flagged.
 
-This rule matters most and is the easiest to get wrong. Counting roster
-appearances rather than games played pushes every per-game average below ESPN's.
-Caitlin Clark, who had missed three games, read 19.3 points per game instead of
-21.5, which dropped her out of the comparison table.
+Counting roster appearances rather than games played pushes every per-game
+average below ESPN's. Caitlin Clark, who had missed three games, read 19.3
+points per game instead of 21.5, which dropped her out of the comparison table.
 
 **Totals** are the sum of `points` across counted games, and **per game**
 divides by games played on that same definition, so games missed never enter the
@@ -97,10 +96,8 @@ differences from ESPN's own leaderboards (no minimum-games qualifier; a
 
 ## Interactivity without a server
 
-Every interaction on this page runs in the browser. There is no Shiny app, no
-`runtime: shiny`, no websocket, and nothing to deploy but a file. Posit Connect
-Cloud serves the published version as a static asset, and opening the local
-`dashboard.html` in a browser gives the identical page.
+Every interaction on this page runs in the browser. There is no Shiny app.
+Posit Connect Cloud serves the published version as a static asset.
 
 ### The whole mechanism, in one line
 
@@ -137,8 +134,8 @@ not, described below.
 | Chart tooltips | `hovertemplate` | a 10-line helper |
 | Tabsets, cards, scrolling, layout, navbar | Quarto `format: dashboard` | markdown headings |
 
-The fourth row is the most valuable, and the one readers usually assume needs
-Shiny. Selection and filtering travel on **separate crosstalk channels**, and
+The fourth row is the most valuable. Readers usually assume it needs
+Shiny. Selection and filtering work on **separate crosstalk channels**, and
 reactable intersects the two per widget, so a team filter narrows every table on
 the page while a row selection still highlights rows *within* that narrowed set.
 No coordination code produces this.
@@ -190,17 +187,17 @@ highlight survives a sort. A class written onto the rows once would not.
 
 Those four cases come to **~190 lines of JavaScript in a 2,350-line document,
 about 8%.** None of it computes anything. It reads no data and builds no table
-markup, and it defines no event system of its own. Every line either
+markup. It defines no event system of its own. Every line either
 instantiates a documented crosstalk handle, calls a documented `Reactable.*`
 method, or toggles a CSS class. The visual states themselves live in
 `styles.scss`: `.is-selected`, `.is-filtering`, `.is-bounce` with its
 `@keyframes` and a `prefers-reduced-motion` guard, and `.champ-lit`.
 
-Two costs worth knowing before copying the pattern:
+Two costs:
 
 - **The scripts depend on rendered element ids**: `main-table`,
   `all-time-table`, `compare-table`, `champions`, and `#standings`. Renaming an
-  `elementId` breaks the JavaScript silently.
+  `elementId` will break the JavaScript silently.
 - **One line is a workaround.** Deselecting the last row broadcasts `[]`, which
   plotly ignores. `TraceManager.prototype.updateSelection` restores
   `origOpacity` only when `keys === null`, and adds the highlight traces only
@@ -217,7 +214,7 @@ self-contained and can be copied or emailed, and it computes nothing new after
 the render. A model fit at request time, a database, user accounts, or any write
 still requires Shiny.
 
-### Keeping the file down
+### Keeping the file size down
 
 Because the page carries all of its data and markup, its size needs watching.
 Five changes took this one from **14.7 MB to 7.6 MB (−48%; 2.65 MB → 1.43 MB
@@ -231,7 +228,7 @@ gzipped)** on identical data:
 | 0.39 MB | one `hovertemplate` per trace instead of per-point tooltip text | `hovertemplate` + `customdata` |
 | 0.35 MB | svglite figures instead of 2× PNG | `fig-format: svg`, `dev: svglite` |
 
-Three of those generalise to any Quarto page carrying these widgets:
+Three of those generalise to any Quarto page using these widgets:
 
 - **reactable serialises htmltools tags as a React tag tree**, writing every
   element out as `{"name":...,"attribs":...,"children":[...]}`, roughly twice
