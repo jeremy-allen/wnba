@@ -247,8 +247,8 @@ Three of those generalise to any Quarto page using these widgets:
   dropped, and once Quarto fixes the defect it will report that it found none,
   at which point the script can go.
 
-📄 **[FILESIZE.md](FILESIZE.md)**: every measurement, the gotchas behind each
-one, and an accounting of the 7.6 MB that remains.
+📄 **[FILESIZE.md](FILESIZE.md)** records every measurement and the gotchas
+behind each one. It also accounts for the 7.6 MB that remains.
 
 ---
 
