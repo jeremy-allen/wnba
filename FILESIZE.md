@@ -85,26 +85,39 @@ Quarto 1.10 writes each stylesheet three times: as `quarto-color-scheme`, as
 `quarto-color-scheme-extra`. Where a document has no separate light and dark
 theme, the second is a duplicate of the first.
 
-**This does not depend on `embed-resources`.** A dashboard whose entire body is
-the word "Hello.", rendered with no theme and no `embed-resources`, writes two
-Bootstrap files into `_files/libs/bootstrap/`:
+**This does not depend on `embed-resources`.** This dashboard configures a single
+`theme: styles.scss`. Rendered that way with `embed-resources` off, a document
+whose entire body is the word "Hello." writes two Bootstrap files into
+`_files/libs/bootstrap/`:
 
 ```
-454,948  bootstrap-1c70b8abf0053b2bd16d9dd29a3bf602.min.css
-454,948  bootstrap-dark-1c70b8abf0053b2bd16d9dd29a3bf602.min.css
+454,916  bootstrap-86ce4f172557789f875fb73044d51e49.min.css
+454,916  bootstrap-dark-86ce4f172557789f875fb73044d51e49.min.css
 ```
 
-`diff` reports no difference between them. The cache-busting hash is the same in
-both filenames, so Quarto took each file's content, arrived at one digest, and
-wrote both files under it. The page then loads both, through three `<link>`
-elements that share `id="quarto-bootstrap"` and `data-mode="light"`. Three
-elements under one id is invalid HTML.
+`diff` reports no difference between them. The cache-busting digest is the same
+in both filenames: Quarto hashed each file's content, arrived at one value, and
+wrote both files under it. With no theme at all the result is the same, at
+454,948 bytes under digest `1c70b8ab…`.
+
+Both files are fetched. Served over `http.server` and loaded once in Chrome, the
+access log records one GET for each:
+
+```
+1 GET .../bootstrap-86ce4f172557789f875fb73044d51e49.min.css
+1 GET .../bootstrap-dark-86ce4f172557789f875fb73044d51e49.min.css
+```
+
+Two requests, identical bytes, different URLs and so no cache sharing: 455 KB of
+CSS, 60 KB of it gzipped, downloaded for nothing. The third link repeats the
+first URL and costs only a cache hit. The three `<link>` elements also share
+`id="quarto-bootstrap"`, and three elements under one id is invalid HTML.
 
 `embed-resources: true` turns the duplicate from a second request into bytes in
 the file. All three links become the same 678,955-byte `data:text/css` URI. On
 this dashboard that is 1,378,734 bytes.
 
-Reproduced across five theme configurations, all identical in this respect:
+All five theme configurations produce the same three links:
 
 | `theme:` | bootstrap `<link>`s | `data-mode` |
 |---|---:|---|
@@ -115,7 +128,8 @@ Reproduced across five theme configurations, all identical in this respect:
 | none at all (Quarto default) | 3 | light, light, light |
 
 **That "Hello." dashboard renders at 2,724,041 bytes.** That is the floor for any
-Quarto 1.10 dashboard, and about 0.9 MB of it is the duplicate.
+Quarto 1.10 dashboard. Three data URIs of 678,955 bytes account for 2,036,865 of
+it, and two of the three are the duplicate: 1,357,910 bytes, half the file.
 
 In `quarto.js` the three targets are built unconditionally once `hasDark` is
 true, which it now always is:
@@ -126,12 +140,30 @@ const hasDark = bundles.some((b) => b.dark !== undefined);
 targets = [targets[0], darkTarget, lightTargetExtra];
 ```
 
-The three targets are how Quarto supports dark mode where JavaScript is absent,
-using the same machinery as when it is present, so the mechanism earns the two
-extra links wherever a document defines both themes. What the mechanism does not
-need is an alternate whose digest already matches the primary. Quarto computes
-that digest either way, and the `{dark: styles.scss}` row above shows the
-configurations that would be left alone.
+The three links are not inert, and it is worth saying what they do. None of them
+carries a `media` attribute, and neither bundle contains `prefers-color-scheme`,
+so cascade order is the entire mechanism where JavaScript is absent: the third
+link repeats the primary *after* the alternate, and the primary wins. Where
+JavaScript runs, it disables that third link on load —
+
+```js
+document.querySelector('link#quarto-bootstrap.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+```
+
+— and toggles the remaining pair. One set of links serves both settings, and
+wherever a document defines both themes all three are needed.
+
+What the mechanism does not need is an alternate whose digest already matches the
+primary. The cascade then has nothing to arbitrate: all three links resolve to
+the same bytes, and a single link would leave the JavaScript-less path exactly
+where it is. Quarto computes the digest either way. A configured pair keeps all
+three:
+
+| `theme:` | primary | alternate | |
+|---|---:|---:|---|
+| `styles.scss` | 454,916 | 454,916 | identical |
+| none at all | 454,948 | 454,948 | identical |
+| `{light: cosmo, dark: darkly}` | 444,739 | 453,592 | differ |
 
 Undone here in a post-render step, which groups the links by `href` and keeps the
 first of each group. Keying on `href` rather than on the whole line is what makes
