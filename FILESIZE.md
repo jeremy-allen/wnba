@@ -78,17 +78,31 @@ Verified in a browser against the tag-tree version — node counts, classes,
 `title` attributes and text all identical; the only difference is React
 normalising `style="height:50%"` to `height: 50%;`.
 
-## 3. Quarto embeds every stylesheet three times — 1.38 MB
-
-**This one is a Quarto defect, not a configuration mistake.**
+## 3. Quarto writes every stylesheet three times — 1.38 MB
 
 Quarto 1.10 writes each stylesheet three times: as `quarto-color-scheme`, as
 `quarto-color-scheme quarto-color-alternate`, and as
 `quarto-color-scheme-extra`. Where a document has no separate light and dark
-theme, all three carry a **byte-identical `href`**, and nothing in the rendered
-page ever reads those classes. For Bootstrap that is 460 KB of CSS embedded
-three times — 1,378,734 bytes of pure repetition — and three elements sharing
-`id="quarto-bootstrap"`, which is invalid HTML besides.
+theme, the second is a duplicate of the first.
+
+**This does not depend on `embed-resources`.** A dashboard whose entire body is
+the word "Hello.", rendered with no theme and no `embed-resources`, writes two
+Bootstrap files into `_files/libs/bootstrap/`:
+
+```
+454,948  bootstrap-1c70b8abf0053b2bd16d9dd29a3bf602.min.css
+454,948  bootstrap-dark-1c70b8abf0053b2bd16d9dd29a3bf602.min.css
+```
+
+`diff` reports no difference between them. The cache-busting hash is the same in
+both filenames, so Quarto took each file's content, arrived at one digest, and
+wrote both files under it. The page then loads both, through three `<link>`
+elements that share `id="quarto-bootstrap"` and `data-mode="light"`. Three
+elements under one id is invalid HTML.
+
+`embed-resources: true` turns the duplicate from a second request into bytes in
+the file. All three links become the same 678,955-byte `data:text/css` URI. On
+this dashboard that is 1,378,734 bytes.
 
 Reproduced across five theme configurations, all identical in this respect:
 
@@ -100,9 +114,8 @@ Reproduced across five theme configurations, all identical in this respect:
 | `{light: styles.scss}` | 3 | dark, dark, dark |
 | none at all (Quarto default) | 3 | light, light, light |
 
-**A dashboard whose entire body is the word "Hello." renders at 2,724,041
-bytes.** That is the floor for any Quarto 1.10 dashboard, and about 0.9 MB of it
-is the same Bootstrap bundle twice over.
+**That "Hello." dashboard renders at 2,724,041 bytes.** That is the floor for any
+Quarto 1.10 dashboard, and about 0.9 MB of it is the duplicate.
 
 In `quarto.js` the three targets are built unconditionally once `hasDark` is
 true, which it now always is:
@@ -113,15 +126,23 @@ const hasDark = bundles.some((b) => b.dark !== undefined);
 targets = [targets[0], darkTarget, lightTargetExtra];
 ```
 
+The three targets are how Quarto supports dark mode where JavaScript is absent,
+using the same machinery as when it is present, so the mechanism earns the two
+extra links wherever a document defines both themes. What the mechanism does not
+need is an alternate whose digest already matches the primary. Quarto computes
+that digest either way, and the `{dark: styles.scss}` row above shows the
+configurations that would be left alone.
+
 Undone here in a post-render step, which groups the links by `href` and keeps the
 first of each group. Keying on `href` rather than on the whole line is what makes
 it safe: the three Bootstrap links differ only in their `class`, while the three
 syntax-highlighting links include one genuine dark-mode variant with different
 CSS that must survive.
 
-A further ~227 KB sits in the surviving copy: `embed-resources` percent-encodes
-CSS into `data:text/css,` URIs, which inflates 460,299 bytes to 686,800. A
-`<style>` block would carry it as-is.
+One part of this is specific to `embed-resources`. A further ~227 KB sits in the
+primary that survives, because `embed-resources` percent-encodes CSS into
+`data:text/css,` URIs, which inflates 460,299 bytes to 686,800. A `<style>` block
+would carry it as-is.
 
 ## 4. ggplotly's per-point tooltip text — 0.58 MB → 0.19 MB
 
@@ -215,7 +236,7 @@ Two gotchas:
 |---|---:|
 | reactable payloads | 3.80 MB |
 | React + ReactDOM + core-js + jQuery + Quarto/bslib JS | 1.81 MB |
-| Bootstrap CSS (one copy, percent-encoded) | 0.71 MB |
+| Bootstrap CSS (percent-encoded, after the duplicate goes) | 0.71 MB |
 | plotly widget JSON | 0.46 MB |
 | bootstrap-icons woff | 0.24 MB |
 
