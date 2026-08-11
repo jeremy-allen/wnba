@@ -26,14 +26,14 @@ Rendering does not fetch anything.
 
 ## Which games count
 
-Every figure on this dashboard uses **regular-season games only**
+Every figure outside the **Playoffs** page uses **regular-season games only**
 (`type_id == 1`).
 
 | Excluded | `type_id` |
 |---|---|
 | All-Star exhibitions | 4 |
 | Commissioner's Cup | 39 |
-| Playoffs (all rounds) | 14, 15, 16, 17 |
+| Playoffs (all rounds) | 14, 16, 17 |
 
 All-Star rosters are dropped as the data loads, since they are not real teams.
 That test used to be `team_id < 90`, which worked when only exhibition rosters
@@ -41,7 +41,10 @@ had large ESPN ids — until ESPN began issuing six-digit ids to new franchises
 too, and it started silently deleting Golden State, Toronto and Portland.
 Excluding by game type is what was always meant.
 
-**Playoff performances therefore appear nowhere**, career totals included.
+The **Playoffs** page instead uses only the current season's completed games
+with types 14, 16, or 17. It remains in its awaiting-tip-off state until the
+first completed playoff box score arrives. Playoff performances remain excluded
+from the regular-season and career pages, including career totals.
 
 ## What counts as a game played
 
@@ -80,5 +83,6 @@ altogether.
   The stat leaderboards rank by season totals, so they are unaffected.
 - **The shooting-efficiency scatter applies its own floor** of 50 field-goal
   attempts, to keep small samples from dominating the percentage axis.
-- **Playoffs are excluded**, so career totals here run below any source that
-  includes postseason play.
+- **Playoffs are excluded from the regular-season and career pages**, so career
+  totals there run below any source that includes postseason play. The separate
+  Playoffs page reports current-season postseason results only.

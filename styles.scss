@@ -556,6 +556,119 @@ table,
 }
 
 // ---------------------------------------------------------------------------
+// Playoffs
+// ---------------------------------------------------------------------------
+
+// The left rail holds live series rather than regular-season standings. It is
+// intentionally compact: the score is a fact to scan, while the larger player
+// cards beside it are where a reader goes to investigate it.
+.playoff-rail {
+  display: grid;
+  gap: 0.45rem;
+  height: 100%;
+  overflow-y: auto;
+  padding: 0.35rem;
+}
+
+.playoff-status {
+  padding: 0.25rem 0.35rem 0.4rem;
+  font-family: var(--display);
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--orange);
+}
+
+.series-card {
+  padding: 0.55rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--panel-2);
+}
+
+.series-stage {
+  margin-bottom: 0.35rem;
+  font-family: var(--display);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mute-2);
+}
+
+.series-team {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  padding: 0.14rem 0;
+}
+
+.series-team img {
+  width: 21px;
+  height: 21px;
+  object-fit: contain;
+}
+
+.series-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--display);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--bone);
+}
+
+.series-wins {
+  flex: 0 0 auto;
+  color: var(--team);
+  font-family: var(--display);
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.series-latest {
+  margin-top: 0.38rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.76rem;
+  line-height: 1.3;
+  color: var(--mute);
+}
+
+.playoff-empty {
+  align-self: center;
+  max-width: 42ch;
+  margin: 0 auto;
+  padding: 1rem;
+  color: var(--mute);
+}
+
+.playoff-empty-title {
+  margin-bottom: 0.35rem;
+  font-family: var(--display);
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--headline);
+}
+
+.playoff-empty p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.playoff-chart-empty {
+  padding-top: 3rem;
+}
+
+// ---------------------------------------------------------------------------
 // Methods and Decoder: prose, not charts
 // ---------------------------------------------------------------------------
 

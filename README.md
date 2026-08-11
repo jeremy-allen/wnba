@@ -32,11 +32,12 @@ custom JavaScript handle.
 
 ## The dashboard
 
-Four pages:
+Five pages:
 
 | Page | What's on it |
 |---|---|
 | **2026** | Standings cards, a player table with expandable panels, a comparison table, scoring-race / efficiency / points charts, eight stat leaderboards, and the champions list |
+| **Playoffs** | Current-season postseason series, player leaders with expandable panels, a playoff-only comparison table, cumulative scoring race, efficiency chart, and playoff leaderboards; waits for the first completed playoff game before showing stats |
 | **All Time** | Career leaders with expandable career panels; a tabset of time on the court, The Chase (every career worth 1,500+ points), career efficiency, three-point and attendance trends; and eight career leaderboards |
 | **Franchises** | Franchise lineage: every rename and relocation the league has had, drawn as a timeline |
 | **Methods** | The rules below, stated on the page itself |
@@ -66,12 +67,14 @@ rebuilt without a data refresh.
 
 ### How games and stats are computed
 
-**Regular season only** (`type_id == 1`). All-Star exhibitions, the
-Commissioner's Cup, and every playoff round are excluded, career totals
-included. The data load drops All-Star rosters by game type rather than by team
-id. The earlier `team_id < 90` test worked until ESPN began issuing six-digit
-ids to new franchises, after which it silently deleted Golden State, Toronto and
-Portland.
+The **2026** and **All Time** pages are **regular season only** (`type_id ==
+1`): All-Star exhibitions, the Commissioner's Cup, and every playoff round are
+excluded, career totals included. The **Playoffs** page uses current-season,
+completed postseason games only (`type_id` 14, 16, or 17), and stays in an
+empty state until the first final box score arrives. The data load drops
+All-Star rosters by game type rather than by team id. The earlier `team_id < 90`
+test worked until ESPN began issuing six-digit ids to new franchises, after
+which it silently deleted Golden State, Toronto and Portland.
 
 **A row in the box score is not a game played.** ESPN carries one row per
 rostered player per game, whether or not she took the floor. A row counts only
