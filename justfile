@@ -32,6 +32,10 @@ render:
 #
 # --no-browser leaves the finished page alone; the url is printed either way.
 
-# Upload dashboard.html to Posit Connect Cloud as it stands
+# Upload dashboard.html to Posit Connect Cloud as it stands. Publishing is a
+# production action, so feature branches may render freely but cannot upload.
+# Check rather than switching branches: an automatic checkout could disturb
+# uncommitted work in the current tree.
 publish:
+    test "$(git branch --show-current)" = "main" || { echo "Refusing to publish: switch to main first." >&2; exit 1; }
     quarto publish posit-connect-cloud dashboard.qmd --no-render --no-prompt --no-browser
