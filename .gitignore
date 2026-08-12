@@ -18,6 +18,3 @@ how_its_going.R
 
 # ESPN crests, fetched once and cached for the franchise chart
 logos/
-
-# staged for the Cloudflare deploy; the html inside is already ignored above
-_site/
