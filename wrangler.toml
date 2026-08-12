@@ -1,0 +1,10 @@
+# Cloudflare serves _site/ as static assets. There is no Worker script: this is
+# the same upload-what-is-on-disk publish that `just publish` does, which is why
+# the justfile's `--no-render` reasoning carries over unchanged — nothing here
+# can rebuild the page, so the render has to have happened first.
+
+name = "wnba"
+compatibility_date = "2026-08-12"
+
+[assets]
+directory = "./_site"
