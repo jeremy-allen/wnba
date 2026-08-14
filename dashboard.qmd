@@ -865,9 +865,11 @@ career_dossier <- function(name) {
 # franchise: record, points for and against, and the last ten results.
 team_games <- season_box |>
   distinct(game_id, game_date, team_abbreviation, team_display_name,
-           team_color, team_logo, team_winner, team_score, opponent_team_score)
+           team_color, team_logo, team_winner, team_score, opponent_team_score,
+           # the tiebreak below has to know who each result came against
+           opponent_team_abbreviation)
 
-standings <- team_games |>
+record <- team_games |>
   arrange(game_date) |>
   summarise(
     name = last(team_display_name),
@@ -879,8 +881,101 @@ standings <- team_games |>
     pa = mean(opponent_team_score, na.rm = TRUE),
     form = list(tail(if_else(team_winner %in% TRUE, "w", "l"), 10)),
     .by = team_abbreviation
-  ) |>
-  arrange(desc(w / (w + l)), desc(w))
+  )
+
+# Teams level on winning percentage used to be left to `arrange`, which sorts
+# stably and so handed the tie to whichever team's rows came first -- that is,
+# to the order the season opened in. On 2026-08-14 it put Indiana above Atlanta
+# at 21-12 apiece, against the league's own order, for no better reason than
+# that Indiana appeared eighth in the opening weekend's box scores and Atlanta
+# eleventh. The `desc(w)` that followed was wrong on its own terms too: it
+# ranked 22-11 above 20-10, but those are one winning percentage and the league
+# sends them to the tiebreak together.
+#
+# The league breaks a tie with, in order: (1) winning percentage in the games
+# among the tied teams, (2) winning percentage against teams finishing .500 or
+# better, (3) point differential in those same games among the tied teams, and
+# (4) point differential across all games. The moment a criterion separates
+# anyone, the procedure restarts at (1) on each part it leaves behind.
+#
+# (2) is not implemented. It is defined on final records, and mid-season the set
+# of .500-or-better teams turns over almost nightly, so a card could move
+# because some third team lost -- a shift nothing on this page would explain.
+# (1), (3) and (4) mean the same thing on any day of the season.
+#
+# (3) and (4) are read per game rather than as totals. The rule is written for a
+# finished season, where every team has played the same 44; in August they have
+# not, and a total would reward whoever has played more.
+
+# Two numbers that mean the same thing have to compare equal, or the teams
+# holding them never get compared at all: .667 reached as 20-10 and as 22-11 is
+# one winning percentage, and a differential is a mean of integers. Ten digits
+# is far past any distinction a season under 100 games can draw.
+level <- function(x) round(as.numeric(x), 10)
+
+# The games a set of teams played against each other, and nothing else.
+among <- function(teams) {
+  team_games |>
+    filter(team_abbreviation %in% teams,
+           opponent_team_abbreviation %in% teams) |>
+    summarise(
+      pct = mean(team_winner %in% TRUE),
+      margin = mean(team_score - opponent_team_score),
+      .by = team_abbreviation
+    )
+}
+
+# One number per team, in the order asked for. A team in `teams` with no row in
+# `d` -- two tied teams who have not met yet -- indexes to NA, and that NA is
+# what stops the criterion from ranking anybody.
+score_of <- function(d, col, teams) {
+  set_names(d[[col]], d$team_abbreviation)[teams]
+}
+
+season_margin <- set_names(record$pf - record$pa, record$team_abbreviation)
+
+# higher is better in all three
+criteria <- list(
+  \(teams) score_of(among(teams), "pct", teams),
+  \(teams) score_of(among(teams), "margin", teams),
+  \(teams) season_margin[teams]
+)
+
+rank_tie <- function(teams) {
+  if (length(teams) < 2) return(teams)
+
+  for (criterion in criteria) {
+    score <- level(criterion(teams))
+    if (anyNA(score) || n_distinct(score) == 1) next
+
+    return(
+      tibble(team = teams, score = score) |>
+        arrange(desc(score)) |>
+        # whoever is still level with a neighbour goes back through the whole
+        # procedure together, from the first criterion. The group is smaller
+        # now, and (1) recomputed among fewer teams can order it differently --
+        # which is why this recurses instead of sorting on a list of keys.
+        summarise(team = list(rank_tie(team)), .by = score) |>
+        pull(team) |>
+        unlist()
+    )
+  }
+
+  # nothing in the procedure separates them; alphabetical at least gives the
+  # same answer on every render
+  sort(teams)
+}
+
+order_of_finish <- record |>
+  mutate(pct = level(w / (w + l))) |>
+  arrange(desc(pct)) |>
+  summarise(team = list(rank_tie(team_abbreviation)), .by = pct) |>
+  pull(team) |>
+  unlist()
+
+# back to the nine columns the cards are drawn from, in the order just settled
+standings <- record |>
+  arrange(match(team_abbreviation, order_of_finish))
 ```
 
 ```{r champions-prep}
