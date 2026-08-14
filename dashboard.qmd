@@ -563,9 +563,23 @@ compare_wide <- compare_raw |>
 
 compare_players <- setdiff(names(compare_wide), "stat")
 
-compare_top10 <- compare_raw |>
+# The columns the table opens on. Total points qualifies the field and points
+# per game then ranks it, because neither does the job alone: total points
+# rewards whoever has simply played, and points per game on its own would seat
+# a player with two big nights off the bench ahead of the league. Fifty in and
+# twenty out, so the ranking has a field to choose from -- the twenty shown are
+# the best per game among the fifty who have scored the most, which is not the
+# same twenty that total points would have picked.
+#
+# No reordering is needed here: `compare_wide` is already in descending
+# points-per-game order, and a subset of a sorted list is sorted. It also still
+# carries every player, so the thirty left over -- and everyone below them --
+# stay reachable by selecting them in the left table.
+compare_default <- compare_raw |>
   arrange(desc(total_points)) |>
-  slice_head(n = 10) |>
+  slice_head(n = 50) |>
+  arrange(desc(ppg)) |>
+  slice_head(n = 20) |>
   pull(athlete_display_name)
 
 # crosstalk selection keys are athlete names, which are exactly the
@@ -573,7 +587,7 @@ compare_top10 <- compare_raw |>
 compare_js <- paste0(
   "(function() {\n",
   "  var players = ", jsonlite::toJSON(compare_players), ";\n",
-  "  var top10 = ", jsonlite::toJSON(compare_top10), ";\n",
+  "  var defaults = ", jsonlite::toJSON(compare_default), ";\n",
   "  var clearBtns = [];\n",
   "  var selKeys = null;\n",
   "  var filtKeys = null;\n",
@@ -581,10 +595,10 @@ compare_js <- paste0(
   "    return !!((selKeys && selKeys.length) || (filtKeys && filtKeys.length));\n",
   "  }\n",
   "  // Three rungs, narrowest first: the players picked, else the team being\n",
-  "  // filtered to, else the top ten this table opens on.\n",
+  "  // filtered to, else the columns this table opens on.\n",
   "  function apply() {\n",
   "    var shown = (selKeys && selKeys.length) ? selKeys\n",
-  "      : ((filtKeys && filtKeys.length) ? filtKeys : top10);\n",
+  "      : ((filtKeys && filtKeys.length) ? filtKeys : defaults);\n",
   "    var hidden = players.filter(function(p) { return shown.indexOf(p) === -1; });\n",
   "    if (window.Reactable) { Reactable.setHiddenColumns('compare-table', hidden); }\n",
   "  }\n",
@@ -1875,12 +1889,12 @@ htmltools::tagList(
           style = list(fontWeight = "600")
         )
       ),
-      map(set_names(compare_top10), \(x) colDef(show = TRUE))
+      map(set_names(compare_default), \(x) colDef(show = TRUE))
     )
   ),
   htmltools::div(
     class = "compare-hint",
-    "Top 10 by total points shown by default — select players in the left table to compare"
+    "Top 20 by points per game among the 50 leading scorers — select players in the left table to compare"
   ),
   htmltools::tags$script(htmltools::HTML(compare_js)),
   # The team-card script rides along here rather than in the teamcards chunk,
