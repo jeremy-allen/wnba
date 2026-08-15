@@ -307,13 +307,17 @@ table,
 .dsr-logtitle {
   margin: 0.9rem 0 0.3rem;
   font-size: 0.78rem;
-  letter-spacing: 0.06em;
+  // 0.045em rather than the 0.06em the other labels carry: this one is a
+  // sentence with three counts in it, not a two-word heading, and the wider
+  // tracking pushed its longest form onto a third line
+  letter-spacing: 0.045em;
   text-transform: uppercase;
   color: var(--mute-2);
 }
 
-// one bar per game her team played, scaled to this player's own best night --
-// so bar heights compare games within a player and never across two players
+// one bar per game on her team's schedule, scaled to this player's own best
+// night -- so bar heights compare games within a player and never across two
+// players
 .dsr-log {
   display: flex;
   align-items: flex-end;
@@ -321,27 +325,56 @@ table,
   height: 44px;
 }
 
+// Every game she played is the one colour, so height is the only thing a bar
+// varies by and points are the only thing height means. Wins used to be drawn
+// at full strength against losses at 0.55, which left a lost game paler than a
+// won one and pale is what the caption calls a game missed -- two different
+// facts reaching for the same cue. The result is in the tooltip instead.
 .dsr-bar {
   flex: 1 1 auto;
   min-width: 2px;
   background: var(--team);
-  opacity: 0.55;
   border-radius: 1px 1px 0 0;
 }
 
-.dsr-bar.won {
-  opacity: 1;
-}
-
-// A game she missed holds its place in the row as a faint full-height column,
-// in the page's own ink rather than the team's, so it cannot be mistaken for a
-// quiet night's scoring. Height comes from here and not from a style
-// attribute, which is what keeps a season of these off the page weight.
+// The two states that are about the slot rather than about a score, both at
+// full height because neither has a score to be short for: black where the
+// game was played without her, an empty outline where it has not been played.
+// Height comes from here and not from a style attribute, which is what keeps a
+// season of these off the page weight.
 .dsr-bar.missed {
   height: 100%;
-  background: var(--bone);
-  opacity: 0.09;
+  background: #000;
   border-radius: 1px;
+}
+
+.dsr-bar.to-come {
+  height: 100%;
+  background: none;
+  // inset rather than a border, so the outline cannot widen the bar on a page
+  // that has not set box-sizing
+  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: 1px;
+}
+
+// A detail panel is laid out as wide as the table row it opens under, and the
+// table is wider than its card whenever the columns' minimum widths add up
+// past it -- so the right end of every dossier was cut off inside the card's
+// sideways scroll. That end is where a season's games still to come sit, which
+// made the tail the one part a reader could not see. `container-type` makes
+// the scrolling table a query container; the panel then takes the card's
+// visible width rather than the row's, pinned to the left edge so it stays put
+// when the table is scrolled sideways.
+#main-table .rt-table,
+#all-time-table .rt-table {
+  container-type: inline-size;
+}
+
+#main-table .dossier,
+#all-time-table .dossier {
+  position: sticky;
+  left: 0;
+  width: 100cqi;
 }
 
 // ---------------------------------------------------------------------------

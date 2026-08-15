@@ -708,27 +708,63 @@ profile <- season_box |>
     ts = pct_of(pts, 2 * (fga + 0.44 * fta))
   )
 
-# One bar per game her team played, in date order -- not one per game she
-# played in. A log of only her own appearances is the same shape whether a
-# player has been ever-present or has sat half the season, and reading two
-# cards against each other says nothing, because 22 bars and 34 bars are drawn
-# at the same width. Against her team's season, the games she missed are the
-# gaps.
+# One bar per game on her team's schedule, in date order -- not one per game
+# she played in. A log of only her own appearances is the same shape whichever
+# way her season has gone, and reading two cards against each other says
+# nothing, because 22 bars and 34 bars are drawn at the same width. Against the
+# whole 44-game schedule, the games she missed are the gaps and the season left
+# to play is the tail.
+#
+# One row per team per game. The postponed game is dropped: it is on the
+# schedule twice, once on the date it was called off and once on the date it
+# was replayed, and only the second is a game. Dropping it leaves all fifteen
+# teams on exactly 44.
+season_schedule <- sched |>
+  filter(
+    season == this_year,
+    type_id == 1,
+    status_type_name != "STATUS_POSTPONED"
+  )
+
+team_slots <- bind_rows(
+  season_schedule |>
+    transmute(
+      game_id, game_date,
+      team_id = as.integer(home_id), opp = away_abbreviation
+    ),
+  season_schedule |>
+    transmute(
+      game_id, game_date,
+      team_id = as.integer(away_id), opp = home_abbreviation
+    )
+)
+
+# Which of those games have been played, taken from the box scores rather than
+# from the schedule's own status. The status flag lags the scores it sits
+# beside: on 2026-08-15 it still called 38 games scheduled that had been
+# played, the whole fortnight from August 2nd on, which would have drawn a
+# fortnight of finished basketball as a season still to come.
 team_games <- season_box |>
-  distinct(team_id, game_id, game_date, opponent_team_abbreviation, team_winner)
+  distinct(team_id, game_id, team_winner) |>
+  mutate(team_played = TRUE)
 
 # Whose season to measure a player against, on any given date: the team she
 # last appeared for, and before her first appearance the team she first
 # appeared for. 216 of this season's 228 players never left a team and take
-# their one team's games; the twelve who moved are split at the date they
+# their one team's schedule; the twelve who moved are split at the date they
 # moved. Without the split a traded player would be handed both teams' seasons
-# and read as having missed half of them.
+# and read as having missed half of each.
+#
+# Dates come from the schedule for slots and appearances alike, so the two are
+# ordered on one clock.
 appearances <- season_box |>
-  distinct(athlete = athlete_display_name, game_date, played_team = team_id)
+  distinct(athlete = athlete_display_name, game_id, played_team = team_id) |>
+  inner_join(distinct(team_slots, game_id, game_date), by = "game_id") |>
+  distinct(athlete, game_date, played_team)
 
 season_slots <- appearances |>
   distinct(athlete, team_id = played_team) |>
-  inner_join(team_games, by = "team_id", relationship = "many-to-many") |>
+  inner_join(team_slots, by = "team_id", relationship = "many-to-many") |>
   left_join(appearances, by = c("athlete", "game_date")) |>
   arrange(athlete, game_date) |>
   group_by(athlete) |>
@@ -736,9 +772,10 @@ season_slots <- appearances |>
   ungroup() |>
   filter(team_id == played_team)
 
-# `dat` was filtered up top to rows where a player actually played, so a slot
-# with no box score behind it is a game she missed, and `p` comes back NA.
-# That NA is the only thing marking a missed game downstream.
+# Three states, and the two joins that separate them. `dat` was filtered up top
+# to rows where a player actually played, so a slot with no box score behind it
+# is one she was not in; whether her team has played it yet says which kind of
+# absence it is.
 game_log <- season_slots |>
   left_join(
     season_box |>
@@ -749,15 +786,21 @@ game_log <- season_slots |>
       ),
     by = c("athlete", "game_id")
   ) |>
+  left_join(team_games, by = c("team_id", "game_id")) |>
   arrange(athlete, game_date) |>
   transmute(
     athlete,
     d = short_date(game_date),
-    opp = opponent_team_abbreviation,
+    opp,
     p,
-    won = team_winner %in% TRUE
+    won = team_winner %in% TRUE,
+    state = case_when(
+      !is.na(p) ~ "played",
+      team_played %in% TRUE ~ "missed",
+      .default = "to come"
+    )
   ) |>
-  nest(log = c(d, opp, p, won))
+  nest(log = c(d, opp, p, won, state))
 
 profile <- profile |> left_join(game_log, by = "athlete")
 
@@ -799,26 +842,33 @@ dossier <- function(name) {
 
   gl <- p$log[[1]]
   top <- max(gl$p, 1, na.rm = TRUE)
-  # A missed game keeps its slot and takes no height, so the bar it would have
-  # had is the space it leaves. It carries the team's result rather than hers,
-  # which is the one thing there is to say about a game she was not in.
+  # Height means points and nothing else, so only a game she played has one.
+  # The other two states are about the slot rather than about a score and take
+  # the full height of the row: black where the game was played without her,
+  # an empty outline where it has not been played at all. A missed game carries
+  # the team's result, which is the one thing there is to say about a game she
+  # was not in.
   bars <- pmap(
-    list(gl$p, gl$won, gl$d, gl$opp),
-    \(p_, won_, d_, o_) if (is.na(p_)) {
-      div(
+    list(gl$p, gl$won, gl$d, gl$opp, gl$state),
+    \(p_, won_, d_, o_, s_) switch(
+      s_,
+      played = div(
+        class = "dsr-bar",
+        style = paste0("height:", max(round(100 * p_ / top), 3), "%"),
+        title = paste0(d_, " vs ", o_, ": ", p_, " pts", if (won_) " (W)" else " (L)")
+      ),
+      missed = div(
         class = "dsr-bar missed",
         title = paste0(
           d_, " vs ", o_, ": missed",
           if (won_) " (team won)" else " (team lost)"
         )
-      )
-    } else {
+      ),
       div(
-        class = if (won_) "dsr-bar won" else "dsr-bar",
-        style = paste0("height:", max(round(100 * p_ / top), 3), "%"),
-        title = paste0(d_, " vs ", o_, ": ", p_, " pts", if (won_) " (W)" else " (L)")
+        class = "dsr-bar to-come",
+        title = paste0(d_, " vs ", o_, ": still to come")
       )
-    }
+    )
   )
 
   div(
@@ -855,12 +905,32 @@ dossier <- function(name) {
       # Two lines by hand. The panel is as wide as the table, which is a little
       # wider than the card it sits in, so a caption left to wrap on its own
       # breaks past the right edge and loses a word or two into the overflow.
+      #
+      # The counts are read off the states rather than written as "30 of 44",
+      # which would put the ten games nobody has played yet on the same footing
+      # as the four she missed. A state with nothing in it drops out of the
+      # sentence, so the last week of the season does not read "0 to come".
       div(
         class = "dsr-logtitle",
-        paste0("Points, game by game — ", sum(!is.na(gl$p)), " of ", nrow(gl),
-               " played, best ", top, "."),
+        paste0(
+          "Points, game by game — ",
+          paste(
+            # `c()` drops the NULLs, so an empty state leaves no comma behind
+            c(
+              paste(sum(gl$state == "played"), "played"),
+              if (any(gl$state == "missed")) {
+                paste(sum(gl$state == "missed"), "missed")
+              },
+              if (any(gl$state == "to come")) {
+                paste(sum(gl$state == "to come"), "to come")
+              }
+            ),
+            collapse = ", "
+          ),
+          "."
+        ),
         tags$br(),
-        "Solid bars are wins, faint columns are games missed."
+        paste0("Best night ", top, ". Black is missed, hollow still to come.")
       ),
       div(class = "dsr-log", bars)
     )
