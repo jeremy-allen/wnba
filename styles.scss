@@ -312,7 +312,7 @@ table,
   color: var(--mute-2);
 }
 
-// one bar per game actually played, scaled to this player's own best night --
+// one bar per game her team played, scaled to this player's own best night --
 // so bar heights compare games within a player and never across two players
 .dsr-log {
   display: flex;
@@ -331,6 +331,17 @@ table,
 
 .dsr-bar.won {
   opacity: 1;
+}
+
+// A game she missed holds its place in the row as a faint full-height column,
+// in the page's own ink rather than the team's, so it cannot be mistaken for a
+// quiet night's scoring. Height comes from here and not from a style
+// attribute, which is what keeps a season of these off the page weight.
+.dsr-bar.missed {
+  height: 100%;
+  background: var(--bone);
+  opacity: 0.09;
+  border-radius: 1px;
 }
 
 // ---------------------------------------------------------------------------

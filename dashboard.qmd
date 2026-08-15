@@ -708,14 +708,53 @@ profile <- season_box |>
     ts = pct_of(pts, 2 * (fga + 0.44 * fta))
   )
 
-# one bar per game actually played, in date order
-game_log <- season_box |>
-  arrange(athlete_display_name, game_date) |>
+# One bar per game her team played, in date order -- not one per game she
+# played in. A log of only her own appearances is the same shape whether a
+# player has been ever-present or has sat half the season, and reading two
+# cards against each other says nothing, because 22 bars and 34 bars are drawn
+# at the same width. Against her team's season, the games she missed are the
+# gaps.
+team_games <- season_box |>
+  distinct(team_id, game_id, game_date, opponent_team_abbreviation, team_winner)
+
+# Whose season to measure a player against, on any given date: the team she
+# last appeared for, and before her first appearance the team she first
+# appeared for. 216 of this season's 228 players never left a team and take
+# their one team's games; the twelve who moved are split at the date they
+# moved. Without the split a traded player would be handed both teams' seasons
+# and read as having missed half of them.
+appearances <- season_box |>
+  distinct(athlete = athlete_display_name, game_date, played_team = team_id)
+
+season_slots <- appearances |>
+  distinct(athlete, team_id = played_team) |>
+  inner_join(team_games, by = "team_id", relationship = "many-to-many") |>
+  left_join(appearances, by = c("athlete", "game_date")) |>
+  arrange(athlete, game_date) |>
+  group_by(athlete) |>
+  fill(played_team, .direction = "downup") |>
+  ungroup() |>
+  filter(team_id == played_team)
+
+# `dat` was filtered up top to rows where a player actually played, so a slot
+# with no box score behind it is a game she missed, and `p` comes back NA.
+# That NA is the only thing marking a missed game downstream.
+game_log <- season_slots |>
+  left_join(
+    season_box |>
+      transmute(
+        athlete = athlete_display_name,
+        game_id,
+        p = as.integer(replace_na(points, 0))
+      ),
+    by = c("athlete", "game_id")
+  ) |>
+  arrange(athlete, game_date) |>
   transmute(
-    athlete = athlete_display_name,
+    athlete,
     d = short_date(game_date),
     opp = opponent_team_abbreviation,
-    p = as.integer(replace_na(points, 0)),
+    p,
     won = team_winner %in% TRUE
   ) |>
   nest(log = c(d, opp, p, won))
@@ -759,14 +798,27 @@ dossier <- function(name) {
   }
 
   gl <- p$log[[1]]
-  top <- max(gl$p, 1)
+  top <- max(gl$p, 1, na.rm = TRUE)
+  # A missed game keeps its slot and takes no height, so the bar it would have
+  # had is the space it leaves. It carries the team's result rather than hers,
+  # which is the one thing there is to say about a game she was not in.
   bars <- pmap(
     list(gl$p, gl$won, gl$d, gl$opp),
-    \(p_, won_, d_, o_) div(
-      class = if (won_) "dsr-bar won" else "dsr-bar",
-      style = paste0("height:", max(round(100 * p_ / top), 3), "%"),
-      title = paste0(d_, " vs ", o_, ": ", p_, " pts", if (won_) " (W)" else " (L)")
-    )
+    \(p_, won_, d_, o_) if (is.na(p_)) {
+      div(
+        class = "dsr-bar missed",
+        title = paste0(
+          d_, " vs ", o_, ": missed",
+          if (won_) " (team won)" else " (team lost)"
+        )
+      )
+    } else {
+      div(
+        class = if (won_) "dsr-bar won" else "dsr-bar",
+        style = paste0("height:", max(round(100 * p_ / top), 3), "%"),
+        title = paste0(d_, " vs ", o_, ": ", p_, " pts", if (won_) " (W)" else " (L)")
+      )
+    }
   )
 
   div(
@@ -800,10 +852,15 @@ dossier <- function(name) {
         stat_cell("FT%", fmt_pct(p$ftp)),
         stat_cell("TS%", fmt_pct(p$ts))
       ),
+      # Two lines by hand. The panel is as wide as the table, which is a little
+      # wider than the card it sits in, so a caption left to wrap on its own
+      # breaks past the right edge and loses a word or two into the overflow.
       div(
         class = "dsr-logtitle",
-        paste0("Points, game by game — ", nrow(gl),
-               " played, best ", top, ". Solid bars are wins.")
+        paste0("Points, game by game — ", sum(!is.na(gl$p)), " of ", nrow(gl),
+               " played, best ", top, "."),
+        tags$br(),
+        "Solid bars are wins, faint columns are games missed."
       ),
       div(class = "dsr-log", bars)
     )
@@ -1442,6 +1499,12 @@ stat_card <- function(df, col, label) {
     name = label,
     minWidth = 140,
     html = TRUE,
+    # A bar column is read from its left edge, where every bar starts, so the
+    # header belongs there too. Reactable right-aligns a numeric column by
+    # default, which put the word at the far end of a run of bars that all
+    # begin at the near one. `align` moves only the header here: the cell holds
+    # a full-width flex row, which text alignment cannot shift.
+    align = "left",
     cell = function(value) markup(bar_cell(value, top))
   )
 
@@ -1845,6 +1908,8 @@ doubles24 |>
         name = "Points",
         minWidth = 120,
         html = TRUE,
+        # left, over the end the bars start from -- see the note in `stat_card`
+        align = "left",
         cell = function(value) {
           markup(bar_cell(value, max(doubles24_df$total_points)))
         }
@@ -2128,6 +2193,7 @@ doubles |>
         name = "Points",
         minWidth = 120,
         html = TRUE,
+        align = "left",
         cell = function(value) {
           markup(bar_cell(value, max(doubles_df$total_points)))
         }
