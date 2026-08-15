@@ -351,9 +351,14 @@ table,
 .dsr-bar.to-come {
   height: 100%;
   background: none;
+  // `--line` is the token for a border between two panels, which is drawn to
+  // be seen past rather than seen. At eight pixels wide against a dark panel
+  // it disappeared. `--mute` is the token for something meant to be read
+  // quietly, which is what a slot for a game nobody has played yet is.
+  //
   // inset rather than a border, so the outline cannot widen the bar on a page
   // that has not set box-sizing
-  box-shadow: inset 0 0 0 1px var(--line);
+  box-shadow: inset 0 0 0 1px var(--mute);
   border-radius: 1px;
 }
 
