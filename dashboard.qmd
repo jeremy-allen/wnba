@@ -338,12 +338,14 @@ stat <- function(data, col, ...) {
       mutate(rank = row_number()) |>
       select(rank, athlete, {{ col }}, total_seasons, seasons)
   } else if (n_distinct(data$seasons) == 1) {
+    # One season, so the span is that season written out 150 times. The page
+    # heading already carries the year; the column carried nothing.
     data |>
-      select(athlete, {{ col }}, seasons) |>
+      select(athlete, {{ col }}) |>
       arrange(desc(.data[[col]])) |>
       slice(1:150) |>
       mutate(rank = row_number()) |>
-      select(rank, athlete, {{ col }}, seasons)
+      select(rank, athlete, {{ col }})
   }
 }
 ```
@@ -1818,7 +1820,7 @@ doubles24 |>
     highlight = TRUE,
     striped = TRUE,
     filterable = FALSE,
-    defaultPageSize = 14,
+    defaultPageSize = 50,
     selection = "multiple",
     onClick = "select",
     rowStyle = list(cursor = "pointer"),
@@ -2028,11 +2030,6 @@ ggplotly(
 #### Row {height=585px}
 
 ##### Column {width=70% .tabset}
-
-```{r tp24}
-#| title: Points
-stat_card(stat24_dfs$total_points, "total_points", "Points")
-```
 
 ```{r ta24}
 #| title: Assists
