@@ -67,50 +67,48 @@ rebuilt without a data refresh.
 ### How games and stats are computed
 
 **Regular season only** (`game_kind == "regular"`). All-Star exhibitions, the
-Commissioner's Cup, and every playoff round are excluded, career totals
-included. Each game is sorted once as the data loads, because neither column in
-the schedule carries the answer alone: `type_id` names a *round*, and the
-playoff rounds only exist from 2019 on, so every playoff game from 2004 through
-2018 looks like a regular-season one by `type_id`. Reading `type_id == 1` as
-"regular season" put 282 playoff games into career totals and showed Diana
-Taurasi at 11,753 points against the league's 10,646. The data load drops
-All-Star rosters by game type rather than by team id. The earlier `team_id < 90`
-test worked until ESPN began issuing six-digit ids to new franchises, after
-which it silently deleted Golden State, Toronto and Portland.
+Commissioner's Cup and every playoff round are excluded, career totals included.
+The data load sorts each game once, because neither column in the schedule
+carries the answer alone. `type_id` names a *round*, and the playoff rounds only
+exist from 2019 on, so every playoff game from 2004 through 2018 looks like a
+regular-season one by `type_id`, which makes `season_type` the column that
+separates the two in every year. The load drops All-Star rosters by game type
+rather than by team id, because ESPN issues six-digit ids to new franchises as
+well as to exhibition rosters, so a threshold on the id would delete Golden
+State, Toronto and Portland along with the exhibitions.
 
-**One career, one name.** Every row an `athlete_id` owns takes the most recent
-name that id used, so a player who changed hers is one career and not two —
-Skylar Diggins at 5,758 points rather than Skylar Diggins-Smith at 4,255 beside
-Skylar Diggins at 1,541.
+**One career, one name.** Every box-score row an `athlete_id` owns takes the
+most recent name that id used, so a player who has changed hers holds one career
+rather than two, Skylar Diggins carrying all 5,758 of her points instead of
+4,255 under one name and 1,541 under another.
 
 **The box scores start in 2004**, and the league started in 1997, so a career
 that opened earlier is counted only from 2004 on.
 
-**A row in the box score is not a game played.** ESPN carries one row per
-rostered player per game, whether or not she took the floor. A row counts only
-when `did_not_play` is not `TRUE` *and* the row has a stat line (`points` is not
+**A box-score row is not a game played.** ESPN carries one row per rostered
+player per game, whether or not she took the floor. A row counts only when
+`did_not_play` is not `TRUE` *and* the row carries a stat line (`points` is not
 `NA`). The second condition exists because `did_not_play` only became reliable
-in 2013; before that, 10–22% of rows per season are inactive players it never
-flagged.
+in 2013. Before then, inactive players ESPN never flagged make up 10–22% of the
+rows in each season.
 
-Counting roster appearances rather than games played pushes every per-game
-average below ESPN's. Caitlin Clark, who had missed three games, read 19.3
-points per game instead of 21.5, which dropped her out of the comparison table.
+Counting roster appearances instead of games played puts each game a player
+missed into her denominator, which pulls every per-game average below ESPN's.
 
 **Totals** are the sum of `points` across counted games, and **per game**
 divides by games played on that same definition, so games missed never enter the
 denominator.
 
-**Who qualifies for a ranking.** The comparison table uses the league's own
-scoring rule — 70% of the games her team has played, or 525 points. Those
+**Who qualifies for a ranking.** The comparison table applies the league's own
+scoring minimum, 70% of the games her team has played, or 525 points. Those
 [minimums](https://stats.wnba.com/help/statminimums/) are written per season and
-gate season leaders; career totals take none, and the league applies none to its
-all-time lists.
+gate season leaders. Career totals take none, because the league applies none to
+its all-time lists.
 
 📄 **[METHODOLOGY.md](METHODOLOGY.md)** states the full rules, what the 2004
 floor costs each pre-2004 career, and how the rest measures against the league's
-own all-time figures — eighteen of the top twenty careers within a few tenths of
-one percent, three of them exact.
+own all-time figures, eighteen of the top twenty careers landing within a few
+tenths of one percent and three of them exact.
 
 ---
 
