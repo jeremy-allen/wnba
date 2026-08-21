@@ -791,7 +791,9 @@ team_slots <- bind_rows(
 # beside: on 2026-08-15 it still called 38 games scheduled that had been
 # played, the whole fortnight from August 2nd on, which would have drawn a
 # fortnight of finished basketball as a season still to come.
-team_games <- season_box |>
+# named for what it marks rather than for what it counts: `team_games` is a
+# different frame in the standings below, built on different columns
+team_slots_played <- season_box |>
   distinct(team_id, game_id, team_winner) |>
   mutate(team_played = TRUE)
 
@@ -833,7 +835,7 @@ game_log <- season_slots |>
       ),
     by = c("athlete", "game_id")
   ) |>
-  left_join(team_games, by = c("team_id", "game_id")) |>
+  left_join(team_slots_played, by = c("team_id", "game_id")) |>
   arrange(athlete, game_date) |>
   transmute(
     athlete,
@@ -1082,20 +1084,33 @@ record <- team_games |>
 # ranked 22-11 above 20-10, but those are one winning percentage and the league
 # sends them to the tiebreak together.
 #
-# The league breaks a tie with, in order: (1) winning percentage in the games
-# among the tied teams, (2) winning percentage against teams finishing .500 or
-# better, (3) point differential in those same games among the tied teams, and
-# (4) point differential across all games. The moment a criterion separates
-# anyone, the procedure restarts at (1) on each part it leaves behind.
+# The league breaks a tie with, in order: (1) the better record in the games
+# among the tied teams, (2) the better winning percentage against every team
+# finishing .500 or better, (3) the better point differential in those same
+# games among the tied teams, and (4) the better point differential across all
+# games. The moment a criterion separates anyone, the procedure restarts at (1)
+# on each part it leaves behind.
 #
-# (2) is not implemented. It is defined on final records, and mid-season the set
-# of .500-or-better teams turns over almost nightly, so a card could move
-# because some third team lost -- a shift nothing on this page would explain.
-# (1), (3) and (4) mean the same thing on any day of the season.
+# Two of the four read differently before the season ends, and one cannot be
+# read at all until it has.
 #
-# (3) and (4) are read per game rather than as totals. The rule is written for a
-# finished season, where every team has played the same 44; in August they have
-# not, and a total would reward whoever has played more.
+# (2) is defined on ".500 or better record at the end of the season", so it has
+# no answer until the season has an end. Mid-season the set of .500-or-better
+# teams turns over almost nightly, and a card that moved because some third team
+# lost would be a shift nothing on this page explains. It joins the procedure on
+# the day the schedule runs out, which is the day the order it settles starts
+# settling playoff seeding.
+#
+# (4) is written as a net total, "total points scored less total points allowed
+# against all opponents". That is the right reading of a finished season, where
+# every team has played the same 44 games. In August they have not, and a net
+# total would reward whoever has played more, so until the season ends it is
+# read per game. The two readings order a finished season identically.
+
+# Whether the regular season has finished. `season_schedule` is this year's
+# regular-season games with the postponement dropped, so every row in it is a
+# game that gets played.
+season_complete <- all(season_schedule$status_type_completed %in% TRUE)
 
 # Two numbers that mean the same thing have to compare equal, or the teams
 # holding them never get compared at all: .667 reached as 20-10 and as 22-11 is
@@ -1104,31 +1119,71 @@ record <- team_games |>
 level <- function(x) round(as.numeric(x), 10)
 
 # The games a set of teams played against each other, and nothing else.
+#
+# `margin` is the net the rule asks for rather than a mean, which is what lets
+# (3) speak for a team that has not met the others yet. Total points scored less
+# total points allowed comes to zero over no games, where a winning percentage
+# over no games is not a number at all. Within a tied group the counts are close
+# enough that the objection to a net in (4) does not arise, and once the season
+# is complete every team has met every other and the question is moot.
 among <- function(teams) {
   team_games |>
     filter(team_abbreviation %in% teams,
            opponent_team_abbreviation %in% teams) |>
     summarise(
       pct = mean(team_winner %in% TRUE),
-      margin = mean(team_score - opponent_team_score),
+      margin = sum(team_score - opponent_team_score),
       .by = team_abbreviation
     )
 }
 
-# One number per team, in the order asked for. A team in `teams` with no row in
-# `d` -- two tied teams who have not met yet -- indexes to NA, and that NA is
-# what stops the criterion from ranking anybody.
-score_of <- function(d, col, teams) {
-  set_names(d[[col]], d$team_abbreviation)[teams]
+# Every team that finished .500 or better, which (2) measures the tied teams
+# against. Read off the same records the cards carry, so the criterion cannot
+# disagree with the column beside it.
+above_500 <- record |>
+  filter(level(w / (w + l)) >= 0.5) |>
+  pull(team_abbreviation)
+
+against_500 <- function(teams) {
+  team_games |>
+    filter(team_abbreviation %in% teams,
+           opponent_team_abbreviation %in% above_500) |>
+    summarise(pct = mean(team_winner %in% TRUE), .by = team_abbreviation) |>
+    score_of("pct", teams)
 }
 
-season_margin <- set_names(record$pf - record$pa, record$team_abbreviation)
+# One number per team, in the order asked for. `fill` is what a team with no row
+# in `d` takes: zero where the criterion's own arithmetic comes to zero over no
+# games, and NA where the criterion cannot speak for that team at all. An NA is
+# what stops a criterion from ranking anybody, because a team it cannot place is
+# a team the tie cannot eliminate.
+score_of <- function(d, col, teams, fill = NA_real_) {
+  out <- set_names(d[[col]], d$team_abbreviation)[teams]
+  out[is.na(out)] <- fill
+  out
+}
 
-# higher is better in all three
-criteria <- list(
-  \(teams) score_of(among(teams), "pct", teams),
-  \(teams) score_of(among(teams), "margin", teams),
-  \(teams) season_margin[teams]
+# Point differential against all opponents. `record` carries pf and pa as means
+# for the cards, so both readings are taken from the games instead.
+season_diff <- team_games |>
+  summarise(
+    net = sum(team_score - opponent_team_score),
+    per_game = mean(team_score - opponent_team_score),
+    .by = team_abbreviation
+  )
+
+season_margin <- set_names(
+  if (season_complete) season_diff$net else season_diff$per_game,
+  season_diff$team_abbreviation
+)
+
+# higher is better in all four. (2) sits out until the season it is defined on
+# has one to be defined on.
+criteria <- c(
+  list(\(teams) score_of(among(teams), "pct", teams)),
+  if (season_complete) list(against_500),
+  list(\(teams) score_of(among(teams), "margin", teams, fill = 0)),
+  list(\(teams) season_margin[teams])
 )
 
 rank_tie <- function(teams) {
@@ -1136,6 +1191,10 @@ rank_tie <- function(teams) {
 
   for (criterion in criteria) {
     score <- level(criterion(teams))
+    # Only (1) can still hand back an NA, and only before the season ends: a
+    # team that has not met the others has no head-to-head winning percentage,
+    # and ranking the teams that have met would eliminate nobody from the tie,
+    # since the unplaced team could belong anywhere among them.
     if (anyNA(score) || n_distinct(score) == 1) next
 
     return(

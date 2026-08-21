@@ -140,6 +140,40 @@ ranking, and the league's minimum would leave 65 of this season's 228 players on
 the page. Should a percentage ever get ranked here, the minimums for it are 100
 field goals made, 50 free throws made and 25 threes made.
 
+## How the standings break a tie
+
+The standings cards follow the league's published
+[tiebreak procedure](https://www.wnba.com/standings), which ranks teams level on
+winning percentage by four criteria in order:
+
+1. the better record in head-to-head games
+2. the better winning percentage against every team finishing .500 or better
+3. the better point differential head-to-head, total points scored less total
+   points allowed
+4. the better point differential against all opponents, on the same net
+
+As soon as a criterion separates anyone, the procedure begins again at the first
+criterion on each group it leaves behind, so a smaller tie is settled by
+head-to-head games recomputed among the teams that remain.
+
+Two criteria read differently while the season runs. Criterion 2 is defined on
+records "at the end of the season", so it has no answer before the season has an
+end, and it joins the procedure on the day the schedule runs out. Criterion 4 is
+written as a net total, which is the right reading of a finished season where
+every team has played the same 44 games. Before then teams have played different
+numbers of games and a net total would reward whoever has played more, so it is
+read per game until the season ends. The two readings order a finished season
+identically.
+
+Criterion 1 stands aside when a tied team has yet to meet the others, which can
+happen only in mid-season. Ranking the teams that have met would eliminate
+nobody from the tie, because the unplaced team could belong anywhere among them.
+Criterion 3 has no such gap, since total points scored less total points allowed
+comes to zero over no games.
+
+Teams that all four criteria leave level are ordered alphabetically, which at
+least returns the same answer on every render.
+
 ## How far back the data goes
 
 **The box scores start in 2004, and the league started in 1997.** A career that
