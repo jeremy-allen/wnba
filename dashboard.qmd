@@ -64,27 +64,38 @@ if (config$data_source == "wehoop") {
     sched <- wehoop::load_wnba_schedule(seasons = seasons)
 }
 
+# What part of the season a game belongs to, settled once for the whole
+# document.
+#
+# `type_id` names a *round*, not a part of the season, and the playoff rounds
+# only exist from 2019 on. Every playoff game from 2004 through 2018 -- and six
+# of 2019's -- carries `type_id == 1` under `season_type == 3`, indistinguishable
+# from a regular-season game by that column alone. This document read
+# `type_id == 1` as "regular season" in twelve places, which folded 282 playoff
+# games into every career total: Diana Taurasi showed 11,753 career points
+# against the league's 10,646, Tina Charles 8,661 against 8,396.
+#
+# Neither column carries the answer on its own, so neither is asked for it
+# again below.
+sched <- sched |>
+  mutate(
+    game_kind = case_when(
+      type_id == 4 ~ "allstar",
+      type_id == 39 ~ "cup",
+      season_type == 3 ~ "post",
+      season_type == 2 & type_id == 1 ~ "regular",
+      .default = "other"
+    )
+  )
+
 sched_games <- sched |> 
-  select(game_id, game_date, season_type, type_id, type_abbreviation,
+  select(game_id, game_date, season_type, type_id, type_abbreviation, game_kind,
   home_display_name, home_score, away_display_name, away_score, attendance) |> 
     mutate(attendance = as.integer(attendance))
 
 # game types
 game_types <- sched_games |> 
-  select(game_id, type_id, type_abbreviation)
-
-# reguarl season games excluding CC and Allstar games
-rs_game_ids <- sched_games |> 
-  select(game_id, type_id) |> 
-  filter(type_id == 1)
-
-# postseason games
-ps_games_ids <- sched_games |> 
-  select(game_id, type_id) |> 
-  filter(type_id %in% c(14, 16, 17))
-
-athletes <- dat |>
-  select(athlete_id, athlete_display_name)
+  select(game_id, type_id, type_abbreviation, game_kind)
 
 # Drop All-Star exhibition rosters, which are not real teams. This used to be
 # `filter(team_id < 90)`, back when every franchise had a two-digit id and only
@@ -93,7 +104,7 @@ athletes <- dat |>
 # Exclude the exhibitions by game type instead, which is what was always meant.
 dat <- dat |>
   left_join(game_types, by = "game_id") |>
-  filter(type_id != 4) |>
+  filter(game_kind != "allstar") |>
   # Drop players who dressed but did not play. ESPN carries a row per rostered
   # player per game; the inactive ones have no minutes and no stats, but they
   # still inflate every n_distinct(game_id) used as a games-played denominator.
@@ -107,7 +118,28 @@ dat <- dat |>
   # minutes, not one is blank across all thirteen stat columns.
   #
   # Together these keep "one row = one game actually played" true downstream.
-  filter(!(did_not_play %in% TRUE), !is.na(points))
+  filter(!(did_not_play %in% TRUE), !is.na(points)) |>
+  # One career, one name. Every aggregation below groups by display name, so a
+  # player who changed hers came out as two careers: Skylar Diggins-Smith with
+  # 4,255 points and Skylar Diggins with 1,541, where the league lists a single
+  # Skylar Diggins with 5,758. Six careers were split this way.
+  #
+  # This canonicalises the name rather than regrouping on `athlete_id`, because
+  # grouping by id would break three careers that matching on name gets right:
+  # ESPN issued two ids to one player for Li Yueru, Wendy Palmer and Isabel
+  # Sanchez. Taking the most recent name each id used merges the splits and
+  # leaves those three merged.
+  #
+  # It belongs here, once, because crosstalk keys and every lookup table further
+  # down are keyed on the name string.
+  mutate(
+    athlete_display_name = if (is.na(athlete_id[1])) {
+      athlete_display_name
+    } else {
+      athlete_display_name[which.max(game_date)]
+    },
+    .by = athlete_id
+  )
 
 games <- dat |>
   filter(season == this_year) |>
@@ -122,7 +154,7 @@ games <- dat |>
 num_games <-dat |>
   filter(
     season == this_year,
-    type_id == 1
+    game_kind == "regular"
     ) |>
   select(team_display_name, game_id, game_date) |>
   unique() |> 
@@ -169,35 +201,25 @@ document.addEventListener("DOMContentLoaded", function () {
 ```
 
 ```{r funcs1}
-post_season_ids <- c(14, 16, 17)
-
 player_stats <- function(
   data, season_part = c("regular", "post"), my_season = NULL
   ) {
   
-  # stop if no type_id column
-  stopifnot("type_id" %in% names(data))
+  # stop if no game_kind column
+  stopifnot("game_kind" %in% names(data))
 
   season_part <- match.arg(season_part)
-
-  my_type_id <- as.integer(1)
-
-  if (season_part == "post") {
-    my_type_id <- post_season_ids
-  }
 
   result <- data |> 
     filter(
       !is.na(athlete_display_name),
-      type_id %in% my_type_id
+      game_kind == season_part
       )
 
   if (!is.null(my_season)) {
     result <- result |> 
       filter(season == my_season)
   }
-  
-  types <- result$type_id |> unique()
 
   result <- result |>
     replace_na(list(points = 0)) |>
@@ -250,10 +272,10 @@ player_stats <- function(
 }
 
 # player points per season over entire career
-player_pps <- function(data, my_type_id = 1) {
+player_pps <- function(data, season_part = "regular") {
 
   data |>
-    filter(type_id == my_type_id) |>
+    filter(game_kind == season_part) |>
     replace_na(list(points = 0)) |>
     summarise(
       points = as.integer(sum(points, na.rm = TRUE)),
@@ -264,9 +286,9 @@ player_pps <- function(data, my_type_id = 1) {
 ```
 
 ```{r funcs2}
-player_doubles <- function(data, my_type_id = 1, my_season = NULL) {
+player_doubles <- function(data, season_part = "regular", my_season = NULL) {
   dat <- data |>
-    filter(type_id == my_type_id)
+    filter(game_kind == season_part)
 
   if (!is.null(my_season)) {
     dat <- dat %>%
@@ -399,6 +421,11 @@ pps <- dat |>
   arrange(athlete_display_name, season) |>
   summarise(
     pps = list(points),
+    # the years those points belong to. The dossier used to count its bars off
+    # from the first year of the career span, which is a year short from the
+    # first season a player missed onward: Taurasi sat out 2015, so her 2016
+    # bar read 2015 and every bar after it was wrong too.
+    pps_seasons = list(season),
     .by = athlete_display_name
   )
 
@@ -487,12 +514,26 @@ doubles24 <- SharedData$new(doubles24_df, group = "experience", key = ~athlete)
 ```
 
 ```{r comparedata}
+# How many games each team has played so far, which is the denominator in the
+# league's own bar for a leaders list: 70% of team games played, or 525 points
+# (https://stats.wnba.com/help/statminimums/). Named for what it counts, since
+# `team_games` is a different frame in the standings below.
+#
+# The minimums are written per season and gate season leaders. They have no
+# career equivalent and the league applies none to its all-time lists, so this
+# qualifies the ranking on this page and nothing on the All Time one, where a
+# career total is its own answer to the question a minimum asks.
+team_games_played <- dat |>
+  filter(season == this_year, game_kind == "regular") |>
+  distinct(team_id, game_id) |>
+  count(team_id, name = "team_games")
+
 # per-game and percentage stats for the player comparison table;
 # not a SharedData - selection drives column visibility via the JS below
 compare_raw <- dat |>
   filter(
     season == this_year,
-    type_id == 1,
+    game_kind == "regular",
     !is.na(athlete_display_name)
   ) |>
   summarise(
@@ -518,7 +559,14 @@ compare_raw <- dat |>
     ft_pct = 100 * sum(free_throws_made, na.rm = TRUE) /
       sum(free_throws_attempted, na.rm = TRUE),
     fta = sum(free_throws_attempted, na.rm = TRUE),
+    # a player traded mid-season is measured against the team she is on now,
+    # which is the nearest single reading of a rule written for a whole season
+    team_id = team_id[which.max(game_date)],
     .by = athlete_display_name
+  ) |>
+  left_join(team_games_played, by = "team_id") |>
+  mutate(
+    qualified = (games >= 0.7 * team_games) %in% TRUE | total_points >= 525
   )
 
 photo_cell <- function(url, team) {
@@ -565,21 +613,20 @@ compare_wide <- compare_raw |>
 
 compare_players <- setdiff(names(compare_wide), "stat")
 
-# The columns the table opens on. Total points qualifies the field and points
-# per game then ranks it, because neither does the job alone: total points
-# rewards whoever has simply played, and points per game on its own would seat
-# a player with two big nights off the bench ahead of the league. Fifty in and
-# twenty out, so the ranking has a field to choose from -- the twenty shown are
-# the best per game among the fifty who have scored the most, which is not the
-# same twenty that total points would have picked.
+# The columns the table opens on: the twenty best per game among the players
+# who have qualified. Points per game cannot rank a league on its own -- it
+# would seat a player with two big nights off the bench ahead of everyone --
+# so it needs a field to choose from. This used to draw that field as the top
+# fifty by total points, a stand-in for a qualifying rule. The league publishes
+# the rule itself, so the stand-in is gone and `qualified` above carries it:
+# 70% of her team's games, or 525 points.
 #
 # No reordering is needed here: `compare_wide` is already in descending
 # points-per-game order, and a subset of a sorted list is sorted. It also still
-# carries every player, so the thirty left over -- and everyone below them --
-# stay reachable by selecting them in the left table.
+# carries every player, so those who have not qualified -- and everyone below
+# them -- stay reachable by selecting them in the left table.
 compare_default <- compare_raw |>
-  arrange(desc(total_points)) |>
-  slice_head(n = 50) |>
+  filter(qualified) |>
   arrange(desc(ppg)) |>
   slice_head(n = 20) |>
   pull(athlete_display_name)
@@ -672,7 +719,7 @@ compare_js <- paste0(
 # expanded table row shows. The tables themselves stay as they were; this is
 # the detail that used to have nowhere to live.
 season_box <- dat |>
-  filter(season == this_year, type_id == 1, !is.na(athlete_display_name))
+  filter(season == this_year, game_kind == "regular", !is.na(athlete_display_name))
 
 profile <- season_box |>
   summarise(
@@ -722,7 +769,7 @@ profile <- season_box |>
 season_schedule <- sched |>
   filter(
     season == this_year,
-    type_id == 1,
+    game_kind == "regular",
     status_type_name != "STATUS_POSTPONED"
   )
 
@@ -955,15 +1002,15 @@ career_dossier <- function(name) {
   # in this data, and an empty slot is better than another player's face
   p <- profile_by[[name]]
   seasons_pts <- pps_by[[name]]$pps[[1]]
+  bar_years <- pps_by[[name]]$pps_seasons[[1]]
   top <- max(seasons_pts, 1)
-  span_years <- as.integer(str_split_1(paste0(c_$seasons, "-", c_$seasons), "-")[1])
 
   bars <- imap(
     seasons_pts,
     \(v, i) div(
       class = "dsr-bar won",
       style = paste0("height:", max(round(100 * v / top), 3), "%"),
-      title = paste0(span_years + i - 1, ": ", v, " pts")
+      title = paste0(bar_years[[i]], ": ", v, " pts")
     )
   )
 
@@ -1128,7 +1175,7 @@ standings <- record |>
 # only in the headline, so both paths are needed to reach all 22 seasons.
 finals <- sched |>
   filter(
-    season_type == 3,
+    game_kind == "post",
     status_type_completed %in% TRUE,
     type_id == 17 |
       str_detect(toupper(coalesce(notes_headline, "")), "WNBA FINALS|^FINALS")
@@ -1289,7 +1336,7 @@ standings_js <- paste0(
 race <- dat |>
   filter(
     season == this_year,
-    type_id == 1,
+    game_kind == "regular",
     !is.na(athlete_display_name)
   ) |>
   select(athlete_display_name, game_date, points) |>
@@ -1309,7 +1356,7 @@ race <- dat |>
 efficiency <- dat |>
   filter(
     season == this_year,
-    type_id == 1,
+    game_kind == "regular",
     !is.na(athlete_display_name)
   ) |>
   summarise(
@@ -1331,11 +1378,11 @@ efficiency <- dat |>
 ```{r experience-prep}
 
 # named to avoid shadowing the `seasons` season-range vector defined above.
-# The type_id filter matters: this plot's y axis reads "Regular Season Games
+# The game_kind filter matters: this plot's y axis reads "Regular Season Games
 # Played", but without it playoff and Commissioner's Cup games were counted
 # too, overstating 235 careers by as much as 58 games.
 experience <- dat |>
-  filter(type_id == 1) |>
+  filter(game_kind == "regular") |>
   summarise(
     n_seasons = n_distinct(season, na.rm = TRUE),
     n_games = n_distinct(game_id, na.rm = TRUE),
@@ -1354,7 +1401,7 @@ player_experience <- experience |>
 points <- dat |> 
   filter(
     season == as.integer(year(now())),
-    type_id == 1
+    game_kind == "regular"
     ) |>
   summarise(
     n_games = n_distinct(game_id, na.rm = TRUE),
@@ -1603,7 +1650,7 @@ stat_card <- function(df, col, label) {
 # careers are 56,000 marks in a page that already weighs 13 MB, and a running
 # total is smooth enough that a season's resolution draws the same curve.
 career_seasons <- dat |>
-  filter(type_id == 1, !is.na(athlete_display_name)) |>
+  filter(game_kind == "regular", !is.na(athlete_display_name)) |>
   summarise(
     season_points = sum(points, na.rm = TRUE),
     season_games = n_distinct(game_id),
@@ -1628,7 +1675,7 @@ chase <- career_seasons |>
 # The season chart's twin, with the floor raised from 50 attempts to 500: over
 # 22 years a 50-attempt career is a cup of coffee, not a shooting record.
 career_efficiency <- dat |>
-  filter(type_id == 1, !is.na(athlete_display_name)) |>
+  filter(game_kind == "regular", !is.na(athlete_display_name)) |>
   summarise(
     n_games = n_distinct(game_id, na.rm = TRUE),
     fga = sum(field_goals_attempted, na.rm = TRUE),
@@ -1648,7 +1695,7 @@ career_efficiency <- dat |>
 # Per team-game, so expansion and a lengthening schedule cannot masquerade as a
 # change in how the game is played.
 league_season <- dat |>
-  filter(type_id == 1) |>
+  filter(game_kind == "regular") |>
   summarise(
     team_games = n_distinct(paste(game_id, team_id)),
     threes = sum(three_point_field_goals_attempted, na.rm = TRUE),
@@ -1672,7 +1719,7 @@ league_season <- dat |>
 # drawn at all, which starts the series at 2013 and drops 2020 -- that one for
 # the honest reason, a season played in a bubble with nobody in the seats.
 attendance <- sched |>
-  filter(season_type == 2, type_id == 1, status_type_completed %in% TRUE) |>
+  filter(game_kind == "regular", status_type_completed %in% TRUE) |>
   mutate(attendance = as.integer(attendance)) |>
   summarise(
     counted = sum(attendance > 0, na.rm = TRUE),
@@ -2489,6 +2536,19 @@ stat_card(stat_dfs$threes_made, "threes_made", "Threes")
 #| title: Turnovers
 stat_card(stat_dfs$total_turnovers, "total_turnovers", "Turnovers")
 ```
+
+## Row {height=110px}
+
+::: {.card title="Where these careers begin"}
+Every total on this page is regular season only, and the box scores start in
+2004. The league started in 1997, so a career that opened before 2004 is
+counted only from 2004 on: Sue Bird, Tamika Catchings, Lisa Leslie, Sheryl
+Swoopes, Tina Thompson, Katie Smith and Lauren Jackson each played seasons this
+page cannot see, and each sits below her official career line by exactly what
+it cannot see. From 2004 on these match the league's own figures to within a
+few tenths of a percent — that last fraction is games ESPN never filed a box
+score for, 23 of them in 2004 alone. The Methods page has the detail.
+:::
 
 # Franchises
 

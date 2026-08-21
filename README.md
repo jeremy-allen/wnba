@@ -66,12 +66,25 @@ rebuilt without a data refresh.
 
 ### How games and stats are computed
 
-**Regular season only** (`type_id == 1`). All-Star exhibitions, the
+**Regular season only** (`game_kind == "regular"`). All-Star exhibitions, the
 Commissioner's Cup, and every playoff round are excluded, career totals
-included. The data load drops All-Star rosters by game type rather than by team
-id. The earlier `team_id < 90` test worked until ESPN began issuing six-digit
-ids to new franchises, after which it silently deleted Golden State, Toronto and
-Portland.
+included. Each game is sorted once as the data loads, because neither column in
+the schedule carries the answer alone: `type_id` names a *round*, and the
+playoff rounds only exist from 2019 on, so every playoff game from 2004 through
+2018 looks like a regular-season one by `type_id`. Reading `type_id == 1` as
+"regular season" put 282 playoff games into career totals and showed Diana
+Taurasi at 11,753 points against the league's 10,646. The data load drops
+All-Star rosters by game type rather than by team id. The earlier `team_id < 90`
+test worked until ESPN began issuing six-digit ids to new franchises, after
+which it silently deleted Golden State, Toronto and Portland.
+
+**One career, one name.** Every row an `athlete_id` owns takes the most recent
+name that id used, so a player who changed hers is one career and not two —
+Skylar Diggins at 5,758 points rather than Skylar Diggins-Smith at 4,255 beside
+Skylar Diggins at 1,541.
+
+**The box scores start in 2004**, and the league started in 1997, so a career
+that opened earlier is counted only from 2004 on.
 
 **A row in the box score is not a game played.** ESPN carries one row per
 rostered player per game, whether or not she took the floor. A row counts only
@@ -88,12 +101,16 @@ points per game instead of 21.5, which dropped her out of the comparison table.
 divides by games played on that same definition, so games missed never enter the
 denominator.
 
-📄 **[METHODOLOGY.md](METHODOLOGY.md)** states the full rules and the three
-known differences from ESPN's own leaderboards. ESPN requires a minimum number
-of games before it ranks a player on a per-game leaderboard, and this dashboard
-requires none. The efficiency scatter sets its own floor of 50 field-goal
-attempts. Excluding the playoffs puts every career total here below a source
-that counts postseason play.
+**Who qualifies for a ranking.** The comparison table uses the league's own
+scoring rule — 70% of the games her team has played, or 525 points. Those
+[minimums](https://stats.wnba.com/help/statminimums/) are written per season and
+gate season leaders; career totals take none, and the league applies none to its
+all-time lists.
+
+📄 **[METHODOLOGY.md](METHODOLOGY.md)** states the full rules, what the 2004
+floor costs each pre-2004 career, and how the rest measures against the league's
+own all-time figures — eighteen of the top twenty careers within a few tenths of
+one percent, three of them exact.
 
 ---
 
