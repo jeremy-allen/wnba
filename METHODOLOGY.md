@@ -81,9 +81,10 @@ rows that do carry minutes, not one is blank across all thirteen stat columns.
 
 This rule governs every per-game average on the dashboard. Counting roster
 appearances instead of games played puts each game a player missed into her
-denominator, which pulls her average down by the fraction of appearances she sat
-out. Caitlin Clark has played 32 of her team's 36 games this season and averages
-22.1 points in them, where counting the four she missed would read 20.2.
+denominator, which pulls her average down by exactly the fraction of her
+appearances she sat out. A player who dressed for every one of her team's games
+and played nine in ten of them would read 10% below what she has actually
+averaged, 19.8 points against 22.0.
 
 ## One career, one name
 
@@ -135,7 +136,7 @@ to do on that page.
 The two shooting-efficiency scatters keep a floor of their own, 50 field-goal
 attempts for the season chart and 500 for the career one, rather than the
 league's 100 made field goals. Each scatter draws a distribution rather than a
-ranking, and the league's minimum would leave 64 of this season's 228 players on
+ranking, and the league's minimum would leave 65 of this season's 228 players on
 the page. Should a percentage ever get ranked here, the minimums for it are 100
 field goals made, 50 free throws made and 25 threes made.
 
