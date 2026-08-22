@@ -464,10 +464,22 @@ doubles <- doubles |>
   ) |>
   mutate(rookie = if_else(seasons == year(now()), "rookie", ""))  |> 
   arrange(desc(total_points)) |>
+  # Where a career stands, settled here rather than counted down to. The
+  # leaderboards have carried a rank column since they were written; the two
+  # tables that open each page did not, so reading a row a hundred deep meant
+  # counting rows to it.
+  #
+  # It ranks on points, because that is the order the frame is in, and it is
+  # fixed at render time for the same reason the leaderboards' is: sorting the
+  # table by another column leaves this reading points rank rather than row
+  # position. A team filter leaves it non-contiguous, which is the point --
+  # 3, 17, 44 says where those three stand in the league, where 1, 2, 3 would
+  # only say they are the three.
+  mutate(rank = row_number()) |>
   # reactable takes its column order from the frame, not from `columns`, so
-  # this select is where the table's reading order is decided: who she is,
-  # then what she scored, then the doubles she turned it into
-  select(athlete, rookie, total_points, triple_double, double_double, pps, everything())
+  # this select is where the table's reading order is decided: where she ranks,
+  # who she is, then what she scored, then the doubles she turned it into
+  select(rank, athlete, rookie, total_points, triple_double, double_double, pps, everything())
 
 # kept as a plain frame under its own name: the career panel behind an expanded
 # row reads from it, and a SharedData wrapper has no columns to read
@@ -502,10 +514,12 @@ doubles24 <- doubles24 |>
   ) |>
   mutate(rookie = if_else(seasons_played == year(now()), "rookie", ""))  |> 
   arrange(desc(total_points)) |>
+  # as above: rank on points, fixed at render time
+  mutate(rank = row_number()) |>
   # reactable takes its column order from the frame, not from `columns`, so
-  # this select is where the table's reading order is decided: who she is,
-  # then what she scored, then the doubles she turned it into
-  select(athlete, rookie, total_points, everything())
+  # this select is where the table's reading order is decided: where she ranks,
+  # who she is, then what she scored, then the doubles she turned it into
+  select(rank, athlete, rookie, total_points, everything())
 
 # as above: the player panel behind an expanded row needs the plain frame
 doubles24_df <- doubles24
@@ -1065,6 +1079,14 @@ record <- team_games |>
   arrange(game_date) |>
   summarise(
     name = last(team_display_name),
+    # The cards are a strip read across now rather than a rail read down, and a
+    # strip is priced in width: "Golden State Valkyries" is half again as wide
+    # as "Golden State", and the crest sitting beside it has already said which
+    # club. Every name the league issues is a place and a one-word nickname, so
+    # the nickname is the last word. `name` stays alongside -- it is what the
+    # selection script matches the tables against, and what the card says on
+    # hover.
+    city = str_remove(last(team_display_name), "\\s+\\S+$"),
     color = accent(last(team_color)),
     logo = espn_img(last(team_logo), 52),
     w = sum(team_winner %in% TRUE),
@@ -1222,7 +1244,7 @@ order_of_finish <- record |>
   pull(team) |>
   unlist()
 
-# back to the nine columns the cards are drawn from, in the order just settled
+# back to the ten columns the cards are drawn from, in the order just settled
 standings <- record |>
   arrange(match(team_abbreviation, order_of_finish))
 ```
@@ -1243,9 +1265,27 @@ finals <- sched |>
     winner = if_else(home_winner %in% TRUE, home_display_name, away_display_name)
   )
 
+# The chart these now mark runs back to 1997 and the schedule starts in 2004,
+# so the league's first seven titles are typed out for the same reason the
+# franchise eras are: they are older than the evidence. The gate in
+# `franchise-prep` puts every title on a franchise era that was playing that
+# season, so a name typed wrong here fails the render rather than sitting here
+# wrong.
+early_titles <- tribble(
+  ~season,  ~champion,
+  1997L, "Houston Comets",
+  1998L, "Houston Comets",
+  1999L, "Houston Comets",
+  2000L, "Houston Comets",
+  2001L, "Los Angeles Sparks",
+  2002L, "Los Angeles Sparks",
+  2003L, "Detroit Shock"
+)
+
 champions <- finals |>
   arrange(season, game_date) |>
   summarise(champion = last(winner), .by = season) |>
+  bind_rows(early_titles) |>
   arrange(desc(season)) |>
   # A card carries the franchise's current name; the schedule carries the name
   # it won under. Detroit Shock is Dallas Wings now, so its two titles light
@@ -1295,18 +1335,18 @@ standings_js <- paste0(
   "    void card.offsetWidth;\n",
   "    card.classList.add('is-bounce');\n",
   "  }\n",
-  "  // The grid scrolls, so a lit card can be out of sight. scrollIntoView\n",
-  "  // would walk every scrollable ancestor and move the whole dashboard;\n",
-  "  // measuring against the grid's own rect keeps the scroll inside it.\n",
+  "  // The strip scrolls sideways, so a lit card can be off either end of it.\n",
+  "  // scrollIntoView would walk every scrollable ancestor and move the whole\n",
+  "  // dashboard; measuring against the strip's own rect keeps the scroll in it.\n",
   "  function reveal(card, grid) {\n",
   "    var c = card.getBoundingClientRect();\n",
   "    var g = grid.getBoundingClientRect();\n",
   "    var delta = 0;\n",
-  "    if (c.top < g.top) { delta = c.top - g.top - 6; }\n",
-  "    else if (c.bottom > g.bottom) { delta = c.bottom - g.bottom + 6; }\n",
+  "    if (c.left < g.left) { delta = c.left - g.left - 6; }\n",
+  "    else if (c.right > g.right) { delta = c.right - g.right + 6; }\n",
   "    if (!delta) { return; }\n",
   "    grid.scrollTo({\n",
-  "      top: grid.scrollTop + delta,\n",
+  "      left: grid.scrollLeft + delta,\n",
   "      behavior: reduced ? 'auto' : 'smooth'\n",
   "    });\n",
   "  }\n",
@@ -1516,6 +1556,10 @@ line <- "#2c313c"
 bone <- "#ded8cb"
 mute <- "#969ea9"
 wnba_orange <- "#f57b20"
+# Charts only, and one chart at that: the championship stars on the Franchises
+# page. The champions table beside them still lights in orange, because orange
+# is what a selection means everywhere else on this page and a title is not one.
+gold <- "#e8b04b"
 
 # `wnba_black` and `wnba_tan` were kept here as aliases through the redesign
 # and are gone deliberately. `wnba_black` had meant "a dark colour to draw
@@ -1642,9 +1686,16 @@ bar_cell <- function(value, max_value, colour = wnba_orange) {
   }
   div(
     style = "display:flex;align-items:center;gap:6px",
+    # The track takes the width the column can spare instead of the 46px it
+    # used to insist on. A leaderboard that has a row to itself is a wide
+    # column, and a fixed track spent that width on the gap between the name
+    # and the bar rather than on the bar -- which is the thing being read.
+    # Floored at what it was, and capped so a bar cannot run the width of a
+    # page and stop meaning anything.
     div(
       style = paste0(
-        "flex:0 0 46px;height:8px;background:", panel_3, ";border-radius:2px"
+        "flex:1 1 46px;min-width:46px;max-width:220px;",
+        "height:8px;background:", panel_3, ";border-radius:2px"
       ),
       div(style = paste0(
         "width:", width, ";height:100%;background:", colour, ";border-radius:2px"
@@ -1666,7 +1717,9 @@ stat_card <- function(df, col, label) {
   # that is not there. Build the list from what the frame actually has.
   cols <- list(
     rank = colDef(name = "#", maxWidth = sm, style = list(color = mute)),
-    athlete = colDef(name = "Athlete", minWidth = 130),
+    # Capped, or the name column takes every pixel a wide row has spare and
+    # opens a hand's width between a player and her own bar.
+    athlete = colDef(name = "Athlete", minWidth = 130, maxWidth = 260),
     total_seasons = colDef(name = "Seasons", maxWidth = md),
     seasons = colDef(name = "Span", maxWidth = lg, style = list(color = mute))
   )
@@ -1994,13 +2047,52 @@ era_ends <- era_ends |>
       .default = "open"
     )
   )
+
+# Every title, on the line of the club that won it. `champions` carries the name
+# a club won under and `franchise_eras` the name it played under, so the two
+# meet on the name and the season decides which era of that name it was.
+titles <- champions |>
+  inner_join(
+    select(franchises, era, row, from, end),
+    by = join_by(champion == era)
+  ) |>
+  filter(season >= from, season <= end)
+
+# The second gate on this chunk, and the one the seven hand-typed titles rest
+# on. A championship that lands on no era, or on two, is a name spelled wrong
+# here or a rename ESPN has made since -- either way something this chart would
+# have drawn in the wrong place.
+stopifnot(
+  "a title does not land on exactly one franchise era" =
+    nrow(titles) == nrow(champions)
+)
+
+# A five-pointed star per title, standing on the line at the season it was won.
+# R has no filled five-pointed plotting symbol -- pch 8 is an asterisk -- so it
+# is drawn as ten vertices at alternating radii, the inner one the pentagram's
+# own 1/phi^2. `star_rows` is the outer radius, about half a crest; the two axes
+# are in different units, so its width in seasons comes from the same conversion
+# the crests take above.
+star_rows <- 0.22
+star_seasons <- star_rows * row_in / season_in
+
+star_points <- tibble(
+  angle = seq(pi / 2, pi / 2 + 2 * pi, length.out = 11)[-11],
+  radius = rep(c(1, 0.382), length.out = 10)
+)
+
+stars <- titles |>
+  mutate(title_id = row_number()) |>
+  cross_join(star_points) |>
+  mutate(
+    x = season + star_seasons * radius * cos(angle),
+    y = row + star_rows * radius * sin(angle)
+  )
 ```
 
 # `r this_year`
 
-## Row
-
-### Column {width=17%}
+## Row {height=88px}
 
 ```{r teamcards}
 #| title: "Click a team to filter the dashboard"
@@ -2014,28 +2106,25 @@ div(
   id = "standings",
   pmap(
     standings,
-    function(team_abbreviation, name, color, logo, w, l, pf, pa, form) {
+    function(team_abbreviation, name, city, color, logo, w, l, pf, pa, form) {
       div(
         class = "tcard",
         # the selection script matches this against the main table's
         # latest_team; both are last(team_display_name)
         `data-team` = name,
+        # One line, so the club's full name and what it scores and allows have
+        # nowhere to sit on the card and sit on the card instead. "for and
+        # against" left it unsaid whether these were season totals or averages;
+        # verbs carry the rate that the nouns did not.
+        title = sprintf(
+          "%s \u00b7 scores %.0f \u00b7 allows %.0f a game", name, pf, pa
+        ),
         style = paste0("--team:", color),
         div(
           class = "tc-top",
           if (is.na(logo)) NULL else tags$img(src = logo, alt = "", loading = "lazy"),
-          span(class = "tc-name", name),
-          span(class = "tc-rec", paste0(w, "\u2013", l))
-        ),
-        div(
-          class = "tc-line",
-          # "for and against" left it unsaid whether these were season totals
-          # or averages, and the header that used to name them is now an
-          # instruction. Verbs carry the rate that the nouns did not.
-          span(
-            title = "points scored and allowed, per game",
-            sprintf("scores %.0f \u00b7 allows %.0f", pf, pa)
-          ),
+          span(class = "tc-name", city),
+          span(class = "tc-rec", paste0(w, "\u2013", l)),
           span(class = "tc-form", map(form, \(r) tags$i(class = r)))
         )
       )
@@ -2044,11 +2133,9 @@ div(
 )
 ```
 
-### Column {width=83%}
+## Row {height=470px}
 
-#### Row {height=470px}
-
-##### Column {width=44%}
+### Column {width=44%}
 
 ```{r doubles24}
 #| title: "Expand a row for the player · click it to select her everywhere"
@@ -2060,6 +2147,7 @@ doubles24 |>
     striped = TRUE,
     filterable = FALSE,
     defaultPageSize = 50,
+    defaultSorted = list(rank = "asc"),
     selection = "multiple",
     onClick = "select",
     rowStyle = list(cursor = "pointer"),
@@ -2072,6 +2160,7 @@ doubles24 |>
       details = function(index) markup(dossier(doubles24_df$athlete[index]))
     ),
     columns = list(
+      rank = colDef(name = "#", maxWidth = sm, style = list(color = mute)),
       athlete = colDef(
         name = "Athlete",
         minWidth = 150,
@@ -2100,7 +2189,7 @@ doubles24 |>
   )
 ```
 
-##### Column {width=56% .tabset}
+### Column {width=56% .tabset}
 
 ```{r compare}
 #| title: Compare
@@ -2145,82 +2234,6 @@ htmltools::tagList(
   # page is one HTML document, so a script anywhere reaches #standings.
   htmltools::tags$script(htmltools::HTML(standings_js))
 )
-```
-
-```{r race}
-#| title: Scoring Race
-race_plot <- race |>
-  ggplot(aes(x = game_date, y = cum_points, group = athlete)) +
-  geom_line(
-    color = wnba_orange,
-    linewidth = 0.3,
-    alpha = 0.4
-  ) +
-  labs(
-    title = "Cumulative Points this Regular Season",
-    subtitle = "each line is a player - select players in the tables",
-    x = NULL,
-    y = "Points Scored"
-  ) +
-  court_gg
-
-ggplotly(
-  race_plot,
-  tooltip = c("athlete", "game_date", "cum_points")
-) |>
-  # White and thick. This used to highlight in `wnba_black`, which worked
-  # against a light page and now names the page's own ink -- a selected line
-  # was being drawn near-black on a near-black panel and disappeared.
-  highlight(
-    color = "#ffffff",
-    opacityDim = 0.35,
-    selected = attrs_selected(line = list(width = 3.5))
-  ) |>
-  basic_bundle() |>
-  # the only chart whose template needs a second field: ggplotly renders a date
-  # scale as a plain numeric axis carrying day numbers, so `%{x}` would read
-  # 20582. The date is taken back off the trace's own x.
-  # "pts" rather than "points" because a first game worth a single point would
-  # otherwise read "1 points", and spelling it out for the twelve places that
-  # happens would cost 56 KB. It is what the dossier's game bars already say.
-  hover(
-    "%{customdata[0]}<br>%{customdata[1]} · %{y:,} pts",
-    custom = function(tr) {
-      unname(Map(c, tr$key, short_date(as.Date(tr$x, origin = "1970-01-01"))))
-    }
-  )
-
-```
-
-```{r efficiency}
-#| title: Efficiency
-efficiency_plot <- efficiency |>
-  ggplot(aes(x = fga_per_game, y = ts_pct, group = athlete)) +
-  geom_point(
-    size = 2,
-    color = wnba_orange
-  ) +
-  labs(
-    title = "Shooting Efficiency vs Volume",
-    subtitle = "each dot is a player with 50+ field goal attempts - select players in the tables",
-    x = "Field Goal Attempts per Game",
-    y = "True Shooting %"
-  ) +
-  court_gg
-
-ggplotly(
-  efficiency_plot,
-  tooltip = c("athlete", "fga_per_game", "ts_pct")
-) |>
-  # White and large, the dot equivalent of the Scoring Race's white line.
-  highlight(
-    color = "#ffffff",
-    opacityDim = 0.35,
-    selected = attrs_selected(marker = list(size = 12))
-  ) |>
-  basic_bundle() |>
-  hover("%{customdata}<br>%{x:.1f} shots a game · %{y:.1f}% true shooting")
-
 ```
 
 ```{r points}
@@ -2268,9 +2281,91 @@ ggplotly(
 
 ```
 
-#### Row {height=585px}
+## Row {height=470px}
 
-##### Column {width=70% .tabset}
+### Column {width=50%}
+
+```{r race}
+#| title: Scoring Race
+race_plot <- race |>
+  ggplot(aes(x = game_date, y = cum_points, group = athlete)) +
+  geom_line(
+    color = wnba_orange,
+    linewidth = 0.3,
+    alpha = 0.4
+  ) +
+  labs(
+    title = "Cumulative Points this Regular Season",
+    subtitle = "each line is a player - select players in the tables",
+    x = NULL,
+    y = "Points Scored"
+  ) +
+  court_gg
+
+ggplotly(
+  race_plot,
+  tooltip = c("athlete", "game_date", "cum_points")
+) |>
+  # White and thick. This used to highlight in `wnba_black`, which worked
+  # against a light page and now names the page's own ink -- a selected line
+  # was being drawn near-black on a near-black panel and disappeared.
+  highlight(
+    color = "#ffffff",
+    opacityDim = 0.35,
+    selected = attrs_selected(line = list(width = 3.5))
+  ) |>
+  basic_bundle() |>
+  # the only chart whose template needs a second field: ggplotly renders a date
+  # scale as a plain numeric axis carrying day numbers, so `%{x}` would read
+  # 20582. The date is taken back off the trace's own x.
+  # "pts" rather than "points" because a first game worth a single point would
+  # otherwise read "1 points", and spelling it out for the twelve places that
+  # happens would cost 56 KB. It is what the dossier's game bars already say.
+  hover(
+    "%{customdata[0]}<br>%{customdata[1]} · %{y:,} pts",
+    custom = function(tr) {
+      unname(Map(c, tr$key, short_date(as.Date(tr$x, origin = "1970-01-01"))))
+    }
+  )
+
+```
+
+### Column {width=50%}
+
+```{r efficiency}
+#| title: Efficiency
+efficiency_plot <- efficiency |>
+  ggplot(aes(x = fga_per_game, y = ts_pct, group = athlete)) +
+  geom_point(
+    size = 2,
+    color = wnba_orange
+  ) +
+  labs(
+    title = "Shooting Efficiency vs Volume",
+    subtitle = "each dot is a player with 50+ field goal attempts - select players in the tables",
+    x = "Field Goal Attempts per Game",
+    y = "True Shooting %"
+  ) +
+  court_gg
+
+ggplotly(
+  efficiency_plot,
+  tooltip = c("athlete", "fga_per_game", "ts_pct")
+) |>
+  # White and large, the dot equivalent of the Scoring Race's white line.
+  highlight(
+    color = "#ffffff",
+    opacityDim = 0.35,
+    selected = attrs_selected(marker = list(size = 12))
+  ) |>
+  basic_bundle() |>
+  hover("%{customdata}<br>%{x:.1f} shots a game · %{y:.1f}% true shooting")
+
+```
+
+## Row {height=585px}
+
+### Column {.tabset}
 
 ```{r ta24}
 #| title: Assists
@@ -2307,37 +2402,6 @@ stat_card(stat24_dfs$threes_made, "threes_made", "Threes")
 stat_card(stat24_dfs$total_turnovers, "total_turnovers", "Turnovers")
 ```
 
-##### Column {width=30%}
-
-```{r champs}
-#| title: "Champions"
-
-reactable(
-  champions,
-  elementId = "champions",
-  compact = TRUE,
-  striped = TRUE,
-  highlight = TRUE,
-  sortable = FALSE,
-  pagination = FALSE,
-  theme = court_theme,
-  # `rowClass` runs on every render and reads the meta the team cards set, so
-  # the lit rows follow the filtering card rather than a moment in time
-  rowClass = JS(
-    "function(rowInfo, state) {
-       if (!state.meta || !state.meta.team) { return null; }
-       return rowInfo.values.franchise === state.meta.team ? 'champ-lit' : null;
-     }"
-  ),
-  columns = list(
-    season = colDef(name = "Season", maxWidth = md, style = list(color = mute)),
-    champion = colDef(name = "Champion", minWidth = 150),
-    # carried for the highlight to match on, never shown
-    franchise = colDef(show = FALSE)
-  )
-)
-```
-
 # All Time
 
 ## Row {height=470px}
@@ -2354,6 +2418,7 @@ doubles |>
     striped = TRUE,
     filterable = FALSE,
     defaultPageSize = 14,
+    defaultSorted = list(rank = "asc"),
     selection = "multiple",
     onClick = "select",
     rowStyle = list(cursor = "pointer"),
@@ -2363,6 +2428,7 @@ doubles |>
       details = function(index) markup(career_dossier(doubles_df$athlete[index]))
     ),
     columns = list(
+      rank = colDef(name = "#", maxWidth = sm, style = list(color = mute)),
       athlete = colDef(name = "Athlete", minWidth = 140, filterable = TRUE),
       rookie = colDef(name = "Rk", maxWidth = sm, filterable = TRUE),
       total_points = colDef(
@@ -2377,6 +2443,10 @@ doubles |>
       triple_double = colDef(name = "TD", maxWidth = sm),
       double_double = colDef(name = "DD", maxWidth = sm),
       pps = colDef(show = FALSE),
+      # its twin, and hidden for the same reason: the sparkline's x values.
+      # Without this the table drew them, one list of twenty seasons per row,
+      # which stood every row up about six lines tall.
+      pps_seasons = colDef(show = FALSE),
       position = colDef(show = FALSE),
       latest_team = colDef(name = "Team", minWidth = 110, filterable = TRUE),
       total_games = colDef(name = "Games", maxWidth = md),
@@ -2611,6 +2681,43 @@ score for, 23 of them in 2004 alone. The Methods page has the detail.
 
 # Franchises
 
+## Row
+
+### Column {width=20%}
+
+```{r champs}
+#| title: "Champions"
+
+reactable(
+  champions,
+  elementId = "champions",
+  compact = TRUE,
+  striped = TRUE,
+  highlight = TRUE,
+  sortable = FALSE,
+  pagination = FALSE,
+  theme = court_theme,
+  # `rowClass` runs on every render and reads the meta the team cards set, so
+  # the lit rows follow the filtering card rather than a moment in time. The
+  # cards are two pages away now, and still reach this: every page of a Quarto
+  # dashboard is one HTML document.
+  rowClass = JS(
+    "function(rowInfo, state) {
+       if (!state.meta || !state.meta.team) { return null; }
+       return rowInfo.values.franchise === state.meta.team ? 'champ-lit' : null;
+     }"
+  ),
+  columns = list(
+    season = colDef(name = "Season", maxWidth = md, style = list(color = mute)),
+    champion = colDef(name = "Champion", minWidth = 150),
+    # carried for the highlight to match on, never shown
+    franchise = colDef(show = FALSE)
+  )
+)
+```
+
+### Column {width=80%}
+
 ```{r franchises}
 #| fig-width: !expr lineage_fig_w
 #| fig-height: !expr lineage_fig_h
@@ -2632,6 +2739,12 @@ lineage_plot <- ggplot(franchises) +
   geom_segment(
     aes(x = from, xend = end, y = row, yend = row, colour = I(colour)),
     linewidth = 0.6
+  ) +
+  # Under the marks that close a line rather than over them: a title won in the
+  # last season of an era would otherwise cover the dot that says the era ended.
+  geom_polygon(
+    aes(x = x, y = y, group = title_id),
+    data = stars, fill = gold, colour = NA
   ) +
   geom_point(
     aes(x = end, y = row, colour = I(colour)),
@@ -2675,8 +2788,15 @@ lineage_plot <- ggplot(franchises) +
     data = \(d) filter(d, from_right),
     hjust = 1, size = lineage_size
   ) +
+  # A tick for every season, because a star's year has to be readable off the
+  # axis and a label every five years cannot do it. Only the fives are named:
+  # thirty numbers along the bottom would be a wall to read past rather than a
+  # scale to read from, and a minor tick draws at half the length of a major
+  # one, which is the hierarchy said in the marks themselves.
   scale_x_continuous(
     breaks = c(1997, 2000, 2005, 2010, 2015, 2020, last_season),
+    minor_breaks = seq(1997, last_season, 1),
+    guide = guide_axis(minor.ticks = TRUE),
     expand = expansion(mult = 0.015)
   ) +
   # room above the top line for its label, which would otherwise sit on the frame
@@ -2685,7 +2805,7 @@ lineage_plot <- ggplot(franchises) +
     title = "Names and Places",
     subtitle = paste(
       "each line is one franchise · a break in it is a new name or a new city",
-      "· a crest is a club still playing"
+      "· a crest is a club still playing · a gold star is a title"
     ),
     x = NULL, y = NULL
   ) +

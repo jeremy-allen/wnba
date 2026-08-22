@@ -396,21 +396,27 @@ table,
 
 #standings {
   display: grid;
-  // One column: the standings are a list of fifteen teams, and wrapping them
-  // into however many columns the width allowed made a rail read as content.
-  grid-template-columns: 1fr;
-  // A bare `1fr` divides the container's height between the rows instead of
-  // letting them take their own, which is how fifteen teams over eight rows
-  // once came out at 42.8px each against the 48px a card needs, clipped
-  // through the second line. The floor keeps that from happening; the `1fr`
-  // above it spends the rail's full height rather than banking it at the
-  // bottom, and `overflow-y` still catches the short-viewport case.
-  grid-auto-rows: minmax(48px, 1fr);
-  align-content: start;
+  // One row, read across, in the order the league orders the teams: leftmost
+  // is first. `grid-auto-flow: column` is what puts every card in that one row
+  // rather than wrapping them into however many the width allowed, which made
+  // the strip read as content instead of as the filter it is.
+  grid-auto-flow: column;
+  // Fifteen fixed columns come to more than any screen, and that is the deal:
+  // the strip scrolls sideways and the fifteenth team is a scroll away. Fixed
+  // rather than fitted, so that a card's position along the strip means its
+  // position in the standings and nothing else.
+  grid-auto-columns: 244px;
+  grid-template-rows: 1fr;
+  align-items: center;
   gap: 0.45rem;
   padding: 0.35rem;
   height: 100%;
-  overflow-y: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  // The strip is barely taller than one card, so a scrollbar at its default
+  // weight would take a third of it. Thin, in the page's own line colour.
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
 }
 
 #standings .tcard {
@@ -419,7 +425,7 @@ table,
   min-height: 0;
   flex: none;
   width: 100%;
-  padding: 0.6rem 0.65rem;
+  padding: 0.4rem 0.55rem;
   border: 1px solid var(--line);
   border-left: 3px solid var(--team);
   border-radius: 3px;
@@ -489,9 +495,9 @@ table,
 }
 
 #standings .tc-top img {
-  flex: 0 0 24px;
-  width: 24px;
-  height: 24px;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
   object-fit: contain;
 }
 
@@ -499,9 +505,9 @@ table,
   flex: 1 1 auto;
   min-width: 0;
   font-family: var(--display);
-  font-size: 1.02rem;
+  font-size: 1rem;
   font-weight: 700;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
   color: var(--bone);
   white-space: nowrap;
   overflow: hidden;
@@ -511,32 +517,23 @@ table,
 #standings .tc-rec {
   flex: 0 0 auto;
   font-family: var(--display);
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   font-weight: 700;
   color: var(--team);
 }
 
-#standings .tc-line {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-top: 0.4rem;
-  height: auto;
-  font-size: 0.8rem;
-  color: var(--mute);
-}
-
+// The last ten results, on the same line as everything else now. Narrower bars
+// at a tighter gap: ten of them are the widest thing on a card after the name,
+// and every pixel here is a pixel the name does not have to give up.
 #standings .tc-form {
   display: flex;
   flex-direction: row;
   flex: 0 0 auto;
-  gap: 2px;
+  gap: 1.5px;
 }
 
 #standings .tc-form i {
-  width: 6px;
+  width: 5px;
   height: 11px;
   border-radius: 1px;
   background: var(--loss);
@@ -668,14 +665,5 @@ table,
     grid-template-rows: minmax(1em, max-content) !important;
     grid-template-columns: 1fr !important;
     height: var(--bslib-grid-height-mobile);
-  }
-
-  // Below this width bslib stacks the columns, so the rail stops being a rail
-  // and becomes a full-width block at the top of the page. One column of
-  // fifteen teams there is a screen and a half to scroll past before reaching
-  // the table, so let them wrap again and take their own height.
-  #standings {
-    grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
-    grid-auto-rows: min-content;
   }
 }
