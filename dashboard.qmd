@@ -363,11 +363,11 @@ stat <- function(data, col, ...) {
     # which -- and then, like the season one, the two clubs that place her: the
     # franchise she last played for and the college she came up at.
     #
-    # "Last Team" rather than "Team", which is what the same column is called a
-    # page earlier. There it names the club she plays for now; here it names
-    # where a career finished, which is not where most of them were made --
-    # Tina Thompson's four titles are Houston's, and this column reads Seattle.
-    # One page's word for one page's meaning.
+    # The club is headed "Team" here as it is on the season page, one word for
+    # what is one column. It holds the club she last played for, which for a
+    # finished career is where it ended rather than where it was made -- Tina
+    # Thompson's four titles are Houston's, and this reads Seattle. The span
+    # beside it is what says the row is a career and not a current club.
     data |>
       select(athlete, {{ col }}, total_seasons, seasons, latest_team, college) |>
       arrange(desc(.data[[col]])) |>
@@ -1867,11 +1867,7 @@ stat_card <- function(df, col, label) {
 
   # `stat()` returns a `total_seasons` column for the career frames and omits it
   # for the single-season ones, and reactable rejects a colDef naming a column
-  # that is not there. Build the list from what the frame actually has -- and
-  # take that same column as the answer to which page this is, since the club
-  # column means something different on each.
-  career <- "total_seasons" %in% names(df)
-
+  # that is not there. Build the list from what the frame actually has.
   cols <- list(
     rank = colDef(name = "#", maxWidth = sm, style = list(color = mute)),
     # Capped, or the name column takes every pixel a wide row has spare and
@@ -1882,10 +1878,7 @@ stat_card <- function(df, col, label) {
     # all-time table beside it does. Muted, because the subject of a row here
     # is the player and the number, and the club is the context around them.
     latest_team = colDef(
-      name = if (career) "Last Team" else "Team",
-      minWidth = 170,
-      maxWidth = 200,
-      style = list(color = mute)
+      name = "Team", minWidth = 170, maxWidth = 200, style = list(color = mute)
     ),
     # The school she came up at, muted for the same reason the club is: the
     # subject of a row here is the player and the number. Blank rather than a
