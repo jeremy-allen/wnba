@@ -9,7 +9,10 @@ themes
 scraps.R
 how_its_going.R
 
-# data caches: regenerate with `Rscript update_data.R`
+# data caches. dat.rds and sched.rds come from `Rscript update_data.R`;
+# colleges.rds is filled in by the render itself, one ESPN request per
+# player it has not seen before, so deleting it costs the next render
+# about ten seconds and nothing else.
 *.rds
 
 # rendered output: ~8 MB per render and git cannot delta-compress it.

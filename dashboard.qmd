@@ -363,13 +363,18 @@ stat <- function(data, col, ...) {
     # One season, so the span is that season written out 150 times. The page
     # heading already carries the year; the column carried nothing.
     #
-    # What it carries instead is the club she plays for and what the total
-    # comes to a game -- the second being the one that says whether a leader
-    # got there by being better or by being available. A career leaderboard
-    # has no room for either: the seasons and the span are already there, and
-    # the club a twenty-year career finished at says little about the twenty.
+    # What it carries instead is the club she plays for, the college she came
+    # up at, and what the total comes to a game -- the last being the one that
+    # says whether a leader got there by being better or by being available. A
+    # career leaderboard has no room for any of them: the seasons and the span
+    # are already there, and the club a twenty-year career finished at says
+    # little about the twenty.
+    #
+    # reactable takes its column order from the frame, so this select is where
+    # the reading order is decided: who she is and what she did, then the two
+    # clubs that are the context around it.
     data |>
-      select(athlete, latest_team, total_games, {{ col }}) |>
+      select(athlete, latest_team, college, total_games, {{ col }}) |>
       arrange(desc(.data[[col]])) |>
       slice(1:150) |>
       mutate(
@@ -378,7 +383,9 @@ stat <- function(data, col, ...) {
         # played wants: its own rate is 1 by construction.
         per_game = if (col == "total_games") NULL else .data[[col]] / total_games
       ) |>
-      select(rank, athlete, latest_team, {{ col }}, any_of("per_game"))
+      select(
+        rank, athlete, {{ col }}, any_of("per_game"), latest_team, college
+      )
   }
 }
 ```
@@ -423,6 +430,83 @@ short_date <- function(d) {
   d <- as.Date(d)
   paste0(format(d, "%b"), " ", as.integer(format(d, "%d")))
 }
+```
+
+```{r colleges}
+# Where each player came up. Nothing in the box scores says so -- `dat` is a
+# game log, and ESPN keeps a player's school on her athlete record instead --
+# so it is asked for once per athlete and kept on disk, the way the franchise
+# crests below are. A render with no network then costs nothing, and a
+# mid-season signing costs one request.
+#
+# A player with no college is cached as NA rather than left out of the cache.
+# Forty-five of this season's players came up through European, Australian and
+# Asian clubs and have no school to name; asking ESPN about them again every
+# render would only get the same blank back.
+college_cache <- "colleges.rds"
+
+season_athletes <- dat |>
+  filter(season == this_year, !is.na(athlete_id)) |>
+  distinct(athlete_id, athlete = athlete_display_name)
+
+known_colleges <- if (file.exists(college_cache)) {
+  readRDS(college_cache)
+} else {
+  tibble(athlete_id = integer(), college = character())
+}
+
+# httr rather than reading the URL straight into jsonlite, for the reason
+# update_data.R gives at its own ESPN call: base R's url() connection sends a
+# user agent ESPN answers with a 403.
+espn_college <- function(id) {
+  url <- paste0(
+    "https://site.web.api.espn.com/apis/common/v3/sports/basketball/wnba",
+    "/athletes/", id
+  )
+
+  resp <- try(httr::RETRY("GET", url, times = 2, quiet = TRUE), silent = TRUE)
+  if (inherits(resp, "try-error") || httr::status_code(resp) != 200) {
+    return(NULL)
+  }
+
+  payload <- try(
+    jsonlite::fromJSON(
+      httr::content(resp, "text", encoding = "UTF-8"),
+      simplifyVector = FALSE
+    ),
+    silent = TRUE
+  )
+  if (inherits(payload, "try-error")) return(NULL)
+
+  tibble(
+    athlete_id = id,
+    college = payload$athlete$college$name %||% NA_character_
+  )
+}
+
+# Only whoever the cache has never been asked about. Anything that fails to
+# arrive is simply not cached, so the column comes out blank for her this
+# render and the next one asks again -- the same bargain the crests make.
+unasked <- setdiff(season_athletes$athlete_id, known_colleges$athlete_id)
+
+if (length(unasked) > 0) {
+  fetched <- map(unasked, espn_college) |> list_rbind()
+  if (nrow(fetched) > 0) {
+    known_colleges <- bind_rows(known_colleges, fetched)
+    saveRDS(known_colleges, college_cache)
+  }
+}
+
+# One school per player, keyed on her display name: every table downstream is
+# keyed that way, and ESPN issued two athlete ids to three of these careers
+# (see the canonicalising `mutate` in the data chunk), which would otherwise
+# put a player in a leaderboard twice.
+player_college <- season_athletes |>
+  left_join(known_colleges, by = "athlete_id") |>
+  summarise(
+    college = if (all(is.na(college))) NA_character_ else na.omit(college)[[1]],
+    .by = athlete
+  )
 ```
 
 ```{r dataprep}
@@ -503,6 +587,12 @@ doubles <- SharedData$new(doubles_df, group = "experience", key = ~athlete)
 ```{r data24prep}
 pdat24 <- player_stats(data = dat, season_part = "regular", my_season = this_year)
 doubles24 <- player_doubles(data = dat, my_season = this_year)
+
+# The season leaderboards carry where a player came up; the career ones do not,
+# for the reason `stat()` gives. A left join, so a player ESPN has no record of
+# keeps her row and loses only the cell.
+pdat24 <- pdat24 |>
+  left_join(player_college, by = join_by(athlete))
 
 main_stats24 <- pdat24 |>
   select(
@@ -1744,6 +1834,19 @@ stat_card <- function(df, col, label) {
     # is the player and the number, and the club is the context around them.
     latest_team = colDef(
       name = "Team", minWidth = 170, maxWidth = 200, style = list(color = mute)
+    ),
+    # The school she came up at, muted for the same reason the club is: the
+    # subject of a row here is the player and the number. Blank rather than a
+    # dash where there is none, because a fifth of this league came up through
+    # European, Australian and Asian clubs and never attended one -- a dash in
+    # a column of school names reads as a missing value rather than as a career
+    # that took another route.
+    college = colDef(
+      name = "College",
+      minWidth = 130,
+      maxWidth = 180,
+      style = list(color = mute),
+      na = ""
     ),
     total_seasons = colDef(name = "Seasons", maxWidth = md),
     seasons = colDef(name = "Span", maxWidth = lg, style = list(color = mute))
