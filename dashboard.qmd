@@ -243,7 +243,13 @@ player_stats <- function(
         paste(range(season, na.rm = TRUE), collapse = "-"),
         as.character(range(season, na.rm = TRUE), collapse = "-")[[1]]
       ),
-      latest_team = last(team_display_name),
+      # The club she played her most recent game for. `last()` would take the
+      # last row of the group rather than the latest game, and `dat` does not
+      # arrive sorted by date: that read the wrong club for 74 careers and for
+      # 14 of this season's players -- Betnijah Laney-Hamilton showed as New
+      # York when her last game was Washington's. It went unseen while this
+      # column only sat on the season page; it is on both pages now.
+      latest_team = team_display_name[which.max(game_date)],
       total_points = sum(points, na.rm = TRUE),
       ppg = list(points), # list for sparkline plots in table rows
       goals_made = sum(field_goals_made, na.rm = TRUE),
@@ -353,22 +359,32 @@ player_doubles <- function(data, season_part = "regular", my_season = NULL) {
 
 stat <- function(data, col, ...) {
   if (n_distinct(data$seasons) > 1) {
+    # A career leaderboard says how long she was at it -- how many seasons, and
+    # which -- and then, like the season one, the two clubs that place her: the
+    # franchise she last played for and the college she came up at.
+    #
+    # "Last Team" rather than "Team", which is what the same column is called a
+    # page earlier. There it names the club she plays for now; here it names
+    # where a career finished, which is not where most of them were made --
+    # Tina Thompson's four titles are Houston's, and this column reads Seattle.
+    # One page's word for one page's meaning.
     data |>
-      select(athlete, {{ col }}, total_seasons, seasons) |>
+      select(athlete, {{ col }}, total_seasons, seasons, latest_team, college) |>
       arrange(desc(.data[[col]])) |>
       slice(1:150) |>
       mutate(rank = row_number()) |>
-      select(rank, athlete, {{ col }}, total_seasons, seasons)
+      select(
+        rank, athlete, {{ col }}, total_seasons, seasons, latest_team, college
+      )
   } else if (n_distinct(data$seasons) == 1) {
     # One season, so the span is that season written out 150 times. The page
     # heading already carries the year; the column carried nothing.
     #
-    # What it carries instead is the club she plays for, the college she came
-    # up at, and what the total comes to a game -- the last being the one that
-    # says whether a leader got there by being better or by being available. A
-    # career leaderboard has no room for any of them: the seasons and the span
-    # are already there, and the club a twenty-year career finished at says
-    # little about the twenty.
+    # What it carries instead is what the total comes to a game, which is the
+    # one that says whether a leader got there by being better or by being
+    # available. A career leaderboard has no use for it -- a rate across
+    # twenty seasons is an average of averages -- and carries the seasons and
+    # the span in its place. Both pages name the two clubs.
     #
     # reactable takes its column order from the frame, so this select is where
     # the reading order is decided: who she is and what she did, then the two
@@ -439,14 +455,27 @@ short_date <- function(d) {
 # crests below are. A render with no network then costs nothing, and a
 # mid-season signing costs one request.
 #
+# Every athlete in the record, not only this season's: the career leaderboards
+# name the college too, and they reach back to 2004.
+#
 # A player with no college is cached as NA rather than left out of the cache.
-# Forty-five of this season's players came up through European, Australian and
-# Asian clubs and have no school to name; asking ESPN about them again every
-# render would only get the same blank back.
+# Two kinds of player have none, and only one of them is a gap.
+#
+# ESPN names a school for 687 of the 936 players in this record -- 83% of those
+# still playing, 60% of those last seen before 2011, because its record of an
+# old career thins out. That sounds worse than the page reads. The leaderboards
+# show the top 150, and a career deep enough to reach one is a career ESPN kept:
+# 142 of the 150 leading scorers have their school, and all eight who do not are
+# Lauren Jackson, Penny Taylor, Emma Meesseman and the rest -- Australians,
+# Belgians and Brazilians who came up through clubs and never attended a
+# college. On the rows that show, a blank is the answer rather than a gap.
+#
+# Either way it is cached as NA, since asking again every render would only get
+# the same blank back.
 college_cache <- "colleges.rds"
 
-season_athletes <- dat |>
-  filter(season == this_year, !is.na(athlete_id)) |>
+all_athletes <- dat |>
+  filter(!is.na(athlete_id)) |>
   distinct(athlete_id, athlete = athlete_display_name)
 
 known_colleges <- if (file.exists(college_cache)) {
@@ -464,10 +493,23 @@ espn_college <- function(id) {
     "/athletes/", id
   )
 
-  resp <- try(httr::RETRY("GET", url, times = 2, quiet = TRUE), silent = TRUE)
-  if (inherits(resp, "try-error") || httr::status_code(resp) != 200) {
-    return(NULL)
+  # `terminate_on` because ESPN has no record at all for some of the older
+  # careers and answers 404. RETRY treats any non-success as worth another go,
+  # and backs off between them: retrying those turned a 30-second first render
+  # into one that had not finished in two minutes.
+  resp <- try(
+    httr::RETRY("GET", url, times = 2, quiet = TRUE, terminate_on = c(200, 404)),
+    silent = TRUE
+  )
+
+  # A 404 is ESPN's answer -- there is no record of this player -- so it is
+  # cached as a blank like any other. Anything else is the network failing to
+  # deliver an answer, so nothing is written and the next render asks again.
+  if (inherits(resp, "try-error")) return(NULL)
+  if (httr::status_code(resp) == 404) {
+    return(tibble(athlete_id = id, college = NA_character_))
   }
+  if (httr::status_code(resp) != 200) return(NULL)
 
   payload <- try(
     jsonlite::fromJSON(
@@ -487,7 +529,7 @@ espn_college <- function(id) {
 # Only whoever the cache has never been asked about. Anything that fails to
 # arrive is simply not cached, so the column comes out blank for her this
 # render and the next one asks again -- the same bargain the crests make.
-unasked <- setdiff(season_athletes$athlete_id, known_colleges$athlete_id)
+unasked <- setdiff(all_athletes$athlete_id, known_colleges$athlete_id)
 
 if (length(unasked) > 0) {
   fetched <- map(unasked, espn_college) |> list_rbind()
@@ -501,7 +543,7 @@ if (length(unasked) > 0) {
 # keyed that way, and ESPN issued two athlete ids to three of these careers
 # (see the canonicalising `mutate` in the data chunk), which would otherwise
 # put a player in a leaderboard twice.
-player_college <- season_athletes |>
+player_college <- all_athletes |>
   left_join(known_colleges, by = "athlete_id") |>
   summarise(
     college = if (all(is.na(college))) NA_character_ else na.omit(college)[[1]],
@@ -525,6 +567,11 @@ pps <- dat |>
   )
 
 pdat <- player_stats(data = dat, season_part = "regular")
+
+# Both sets of leaderboards name the college, so both frames carry it. A left
+# join, so a player ESPN has no record of keeps her row and loses only the cell.
+pdat <- pdat |>
+  left_join(player_college, by = join_by(athlete))
 
 player_seasons <- pdat |>
   select(athlete, total_games, total_seasons, seasons) |> 
@@ -588,9 +635,7 @@ doubles <- SharedData$new(doubles_df, group = "experience", key = ~athlete)
 pdat24 <- player_stats(data = dat, season_part = "regular", my_season = this_year)
 doubles24 <- player_doubles(data = dat, my_season = this_year)
 
-# The season leaderboards carry where a player came up; the career ones do not,
-# for the reason `stat()` gives. A left join, so a player ESPN has no record of
-# keeps her row and loses only the cell.
+# as above, for the season leaderboards
 pdat24 <- pdat24 |>
   left_join(player_college, by = join_by(athlete))
 
@@ -1822,7 +1867,11 @@ stat_card <- function(df, col, label) {
 
   # `stat()` returns a `total_seasons` column for the career frames and omits it
   # for the single-season ones, and reactable rejects a colDef naming a column
-  # that is not there. Build the list from what the frame actually has.
+  # that is not there. Build the list from what the frame actually has -- and
+  # take that same column as the answer to which page this is, since the club
+  # column means something different on each.
+  career <- "total_seasons" %in% names(df)
+
   cols <- list(
     rank = colDef(name = "#", maxWidth = sm, style = list(color = mute)),
     # Capped, or the name column takes every pixel a wide row has spare and
@@ -1833,7 +1882,10 @@ stat_card <- function(df, col, label) {
     # all-time table beside it does. Muted, because the subject of a row here
     # is the player and the number, and the club is the context around them.
     latest_team = colDef(
-      name = "Team", minWidth = 170, maxWidth = 200, style = list(color = mute)
+      name = if (career) "Last Team" else "Team",
+      minWidth = 170,
+      maxWidth = 200,
+      style = list(color = mute)
     ),
     # The school she came up at, muted for the same reason the club is: the
     # subject of a row here is the player and the number. Blank rather than a
