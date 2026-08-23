@@ -2552,6 +2552,11 @@ ggplotly(
 
 ### Column {.tabset}
 
+```{r tp24}
+#| title: Points
+stat_card(stat24_dfs$total_points, "total_points", "Points")
+```
+
 ```{r ta24}
 #| title: Assists
 stat_card(stat24_dfs$total_assists, "total_assists", "Assists")
