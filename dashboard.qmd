@@ -551,7 +551,7 @@ player_college <- all_athletes |>
   )
 ```
 
-```{r dataprep}
+```{r dataprep-career}
 
 pps <- dat |>
   player_pps() |>
@@ -566,14 +566,14 @@ pps <- dat |>
     .by = athlete_display_name
   )
 
-pdat <- player_stats(data = dat, season_part = "regular")
+pdat_career <- player_stats(data = dat, season_part = "regular")
 
 # Both sets of leaderboards name the college, so both frames carry it. A left
 # join, so a player ESPN has no record of keeps her row and loses only the cell.
-pdat <- pdat |>
+pdat_career <- pdat_career |>
   left_join(player_college, by = join_by(athlete))
 
-player_seasons <- pdat |>
+player_seasons <- pdat_career |>
   select(athlete, total_games, total_seasons, seasons) |> 
   mutate(
     across(
@@ -582,10 +582,10 @@ player_seasons <- pdat |>
     )
   )
 
-doubles <- dat |>
+doubles_career <- dat |>
   player_doubles()
 
-main_stats <- pdat |>
+main_stats_career <- pdat_career |>
   select(
     athlete,
     total_points,
@@ -597,8 +597,8 @@ main_stats <- pdat |>
     latest_team
   )
 
-doubles <- doubles |>
-  left_join(main_stats, by = join_by(athlete)) |>
+doubles_career <- doubles_career |>
+  left_join(main_stats_career, by = join_by(athlete)) |>
   left_join(pps, by = join_by(athlete == athlete_display_name)) |>
   left_join(
     player_seasons,
@@ -625,9 +625,9 @@ doubles <- doubles |>
 
 # kept as a plain frame under its own name: the career panel behind an expanded
 # row reads from it, and a SharedData wrapper has no columns to read
-doubles_df <- doubles
+doubles_career_df <- doubles_career
 
-doubles <- SharedData$new(doubles_df, group = "experience", key = ~athlete)
+doubles_career <- SharedData$new(doubles_career_df, group = "experience", key = ~athlete)
 
 ```
 
@@ -655,7 +655,7 @@ main_stats_season <- pdat_season |>
 doubles_season <- doubles_season |>
   left_join(main_stats_season, by = join_by(athlete)) |>
   left_join(
-    pdat |> select(athlete, seasons_played = seasons),
+    pdat_career |> select(athlete, seasons_played = seasons),
     by = join_by(athlete)
   ) |>
   mutate(rookie = if_else(seasons_played == year(now()), "rookie", ""))  |> 
@@ -1155,10 +1155,10 @@ dossier <- function(name) {
 ```
 
 ```{r career-panel}
-# The All Time table's panel. Career totals come from `pdat`, and the bars are
+# The All Time table's panel. Career totals come from `pdat_career`, and the bars are
 # `pps` -- points per season -- which was already computed for a sparkline and
 # is reused here at a size worth reading.
-career_by <- split(pdat, pdat$athlete)
+career_by <- split(pdat_career, pdat_career$athlete)
 pps_by <- split(pps, pps$athlete_display_name)
 
 career_dossier <- function(name) {
@@ -1676,9 +1676,9 @@ stat_names <- c(
   "total_blocks", "total_turnovers", "total_fouls"
 )
 
-stat_dfs <- stat_names %>%
+stat_career_dfs <- stat_names %>%
   set_names() %>%
-  map(~ stat(pdat, col = {{ .x }}))
+  map(~ stat(pdat_career, col = {{ .x }}))
 
 
 # dfs for this_year stats
@@ -2598,9 +2598,9 @@ stat_card(stat_season_dfs$total_turnovers, "total_turnovers", "Turnovers")
 
 ### Column {width=52%}
 
-```{r alldoubles}
+```{r doubles-career}
 #| title: "Expand a row for the career · click it to select her everywhere"
-doubles |>
+doubles_career |>
   reactable(
     elementId = "all-time-table",
     compact = TRUE,
@@ -2615,7 +2615,7 @@ doubles |>
     theme = court_theme,
     details = colDef(
       html = TRUE,
-      details = function(index) markup(career_dossier(doubles_df$athlete[index]))
+      details = function(index) markup(career_dossier(doubles_career_df$athlete[index]))
     ),
     columns = list(
       rank = colDef(name = "#", maxWidth = sm, style = list(color = mute)),
@@ -2627,7 +2627,7 @@ doubles |>
         html = TRUE,
         align = "left",
         cell = function(value) {
-          markup(bar_cell(value, max(doubles_df$total_points)))
+          markup(bar_cell(value, max(doubles_career_df$total_points)))
         }
       ),
       triple_double = colDef(name = "TD", maxWidth = sm),
@@ -2816,44 +2816,44 @@ attendance_plot
 
 ### Column {.tabset}
 
-```{r tp}
+```{r tp-career}
 #| title: Points
-stat_card(stat_dfs$total_points, "total_points", "Points")
+stat_card(stat_career_dfs$total_points, "total_points", "Points")
 ```
 
-```{r ta}
+```{r ta-career}
 #| title: Assists
-stat_card(stat_dfs$total_assists, "total_assists", "Assists")
+stat_card(stat_career_dfs$total_assists, "total_assists", "Assists")
 ```
 
-```{r tr}
+```{r tr-career}
 #| title: Rebounds
-stat_card(stat_dfs$total_rebounds, "total_rebounds", "Rebounds")
+stat_card(stat_career_dfs$total_rebounds, "total_rebounds", "Rebounds")
 ```
 
-```{r ts}
+```{r ts-career}
 #| title: Steals
-stat_card(stat_dfs$total_steals, "total_steals", "Steals")
+stat_card(stat_career_dfs$total_steals, "total_steals", "Steals")
 ```
 
-```{r tb}
+```{r tb-career}
 #| title: Blocks
-stat_card(stat_dfs$total_blocks, "total_blocks", "Blocks")
+stat_card(stat_career_dfs$total_blocks, "total_blocks", "Blocks")
 ```
 
-```{r gm}
+```{r gm-career}
 #| title: Goals
-stat_card(stat_dfs$goals_made, "goals_made", "Goals")
+stat_card(stat_career_dfs$goals_made, "goals_made", "Goals")
 ```
 
-```{r tm}
+```{r tm-career}
 #| title: Threes
-stat_card(stat_dfs$threes_made, "threes_made", "Threes")
+stat_card(stat_career_dfs$threes_made, "threes_made", "Threes")
 ```
 
-```{r tt}
+```{r tt-career}
 #| title: Turnovers
-stat_card(stat_dfs$total_turnovers, "total_turnovers", "Turnovers")
+stat_card(stat_career_dfs$total_turnovers, "total_turnovers", "Turnovers")
 ```
 
 ## Row {height=110px}
