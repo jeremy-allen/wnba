@@ -2648,75 +2648,6 @@ doubles_career |>
 
 ### Column {width=48% .tabset}
 
-```{r chase}
-#| title: The Chase
-# No subtitle on the charts that go through ggplotly: it drops plot.subtitle
-# without a word, so anything written there is written to nobody. What the
-# reader needs is in the title and the axes instead.
-chase_plot <- chase |>
-  ggplot(aes(x = career_games, y = total_points, group = athlete)) +
-  geom_line(color = wnba_orange, alpha = 0.4, linewidth = 0.5) +
-  labs(
-    title = "The Chase — every career worth 1,500 points",
-    x = "Regular Season Games Played",
-    y = "Career Points"
-  ) +
-  court_gg +
-  theme(axis.text.x = element_text(size = 10), aspect.ratio = court_ratio)
-
-ggplotly(chase_plot, tooltip = c("athlete", "career_games", "total_points")) |>
-  # White and thick, the same way the Scoring Race lights up a selected line:
-  # these curves are drawn in orange at low opacity, and a selected career has
-  # to read against 177 others on a near-black panel.
-  highlight(
-    color = "#ffffff",
-    opacityDim = 0.35,
-    selected = attrs_selected(line = list(width = 3.5))
-  ) |>
-  basic_bundle() |>
-  hover("%{customdata}<br>%{y:,} points in %{x:,} games")
-
-```
-
-```{r experience}
-#| title: Time on the Court
-seasons_plot <- player_experience |>
-  ggplot(aes(x = n_seasons, y = n_games, group = athlete)) +
-  geom_point(size = 2, color = wnba_orange)  +
-  labs(
-    title = "Time on the Court",
-    subtitle = "each dot is a player - select players in the tables",
-    x = "Seasons Played",
-    y = "Regular Season Games Played"
-  ) +
-  scale_x_discrete(
-    limits = factor(seq_len(max_seasons)),
-    breaks = as.character(seq_len(max_seasons))
-  ) +
-  court_gg +
-  theme(
-    axis.text.y = element_blank(),
-    axis.ticks.y = element_blank(),
-    axis.text.x = element_text(size = 10),
-    aspect.ratio = court_ratio
-  )
-
-ggplotly(seasons_plot, tooltip = c("athlete", "n_seasons", "n_games")) |>
-  highlight(
-    color = "#ffffff",
-    opacityDim = 0.35,
-    selected = attrs_selected(marker = list(size = 12))
-  ) |>
-  basic_bundle() |>
-  hover(
-    "%{customdata[0]}<br>%{customdata[1]} over %{customdata[2]}",
-    custom = function(tr) {
-      unname(Map(c, tr$key, counted(tr$y, "game"), counted(tr$x, "season")))
-    }
-  )
-
-```
-
 ```{r career-efficiency}
 #| title: Efficiency
 career_efficiency_plot <- career_efficiency |>
@@ -2809,6 +2740,81 @@ attendance_plot <- attendance |>
   )
 
 attendance_plot
+
+```
+
+## Row {height=470px}
+
+### Column {width=50%}
+
+```{r chase}
+#| title: The Chase
+# No subtitle on the charts that go through ggplotly: it drops plot.subtitle
+# without a word, so anything written there is written to nobody. What the
+# reader needs is in the title and the axes instead.
+chase_plot <- chase |>
+  ggplot(aes(x = career_games, y = total_points, group = athlete)) +
+  geom_line(color = wnba_orange, alpha = 0.4, linewidth = 0.5) +
+  labs(
+    title = "The Chase — every career worth 1,500 points",
+    x = "Regular Season Games Played",
+    y = "Career Points"
+  ) +
+  court_gg +
+  theme(axis.text.x = element_text(size = 10), aspect.ratio = court_ratio)
+
+ggplotly(chase_plot, tooltip = c("athlete", "career_games", "total_points")) |>
+  # White and thick, the same way the Scoring Race lights up a selected line:
+  # these curves are drawn in orange at low opacity, and a selected career has
+  # to read against 177 others on a near-black panel.
+  highlight(
+    color = "#ffffff",
+    opacityDim = 0.35,
+    selected = attrs_selected(line = list(width = 3.5))
+  ) |>
+  basic_bundle() |>
+  hover("%{customdata}<br>%{y:,} points in %{x:,} games")
+
+```
+
+### Column {width=50%}
+
+```{r experience}
+#| title: Time on the Court
+seasons_plot <- player_experience |>
+  ggplot(aes(x = n_seasons, y = n_games, group = athlete)) +
+  geom_point(size = 2, color = wnba_orange)  +
+  labs(
+    title = "Time on the Court",
+    subtitle = "each dot is a player - select players in the tables",
+    x = "Seasons Played",
+    y = "Regular Season Games Played"
+  ) +
+  scale_x_discrete(
+    limits = factor(seq_len(max_seasons)),
+    breaks = as.character(seq_len(max_seasons))
+  ) +
+  court_gg +
+  theme(
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.text.x = element_text(size = 10),
+    aspect.ratio = court_ratio
+  )
+
+ggplotly(seasons_plot, tooltip = c("athlete", "n_seasons", "n_games")) |>
+  highlight(
+    color = "#ffffff",
+    opacityDim = 0.35,
+    selected = attrs_selected(marker = list(size = 12))
+  ) |>
+  basic_bundle() |>
+  hover(
+    "%{customdata[0]}<br>%{customdata[1]} over %{customdata[2]}",
+    custom = function(tr) {
+      unname(Map(c, tr$key, counted(tr$y, "game"), counted(tr$x, "season")))
+    }
+  )
 
 ```
 
