@@ -631,15 +631,15 @@ doubles <- SharedData$new(doubles_df, group = "experience", key = ~athlete)
 
 ```
 
-```{r data24prep}
-pdat24 <- player_stats(data = dat, season_part = "regular", my_season = this_year)
-doubles24 <- player_doubles(data = dat, my_season = this_year)
+```{r dataprep-season}
+pdat_season <- player_stats(data = dat, season_part = "regular", my_season = this_year)
+doubles_season <- player_doubles(data = dat, my_season = this_year)
 
 # as above, for the season leaderboards
-pdat24 <- pdat24 |>
+pdat_season <- pdat_season |>
   left_join(player_college, by = join_by(athlete))
 
-main_stats24 <- pdat24 |>
+main_stats_season <- pdat_season |>
   select(
     athlete,
     total_points,
@@ -652,8 +652,8 @@ main_stats24 <- pdat24 |>
     latest_team
   )
 
-doubles24 <- doubles24 |>
-  left_join(main_stats24, by = join_by(athlete)) |>
+doubles_season <- doubles_season |>
+  left_join(main_stats_season, by = join_by(athlete)) |>
   left_join(
     pdat |> select(athlete, seasons_played = seasons),
     by = join_by(athlete)
@@ -668,9 +668,9 @@ doubles24 <- doubles24 |>
   select(rank, athlete, rookie, total_points, everything())
 
 # as above: the player panel behind an expanded row needs the plain frame
-doubles24_df <- doubles24
+doubles_season_df <- doubles_season
 
-doubles24 <- SharedData$new(doubles24_df, group = "experience", key = ~athlete)
+doubles_season <- SharedData$new(doubles_season_df, group = "experience", key = ~athlete)
 ```
 
 ```{r comparedata}
@@ -1457,7 +1457,7 @@ champions <- finals |>
 # display name in `data-team`; this map is the bridge between the two. Built
 # from the current-season frame, so selecting an All Time player with no season
 # this year lights no card - correct, since her franchise may not be playing.
-player_team <- doubles24_df |>
+player_team <- doubles_season_df |>
   filter(!is.na(latest_team)) |>
   distinct(athlete, latest_team)
 
@@ -1683,9 +1683,9 @@ stat_dfs <- stat_names %>%
 
 # dfs for this_year stats
 
-stat24_dfs <- stat_names %>%
+stat_season_dfs <- stat_names %>%
   set_names() %>%
-  map(~ stat(pdat24, col = {{ .x }}))
+  map(~ stat(pdat_season, col = {{ .x }}))
 
 # https://rlang.r-lib.org/reference/topic-inject.html#embracing-with-
 ```
@@ -2322,9 +2322,9 @@ div(
 
 ### Column {width=44%}
 
-```{r doubles24}
+```{r doubles-season}
 #| title: "Expand a row for the player · click it to select her everywhere"
-doubles24 |>
+doubles_season |>
   reactable(
     elementId = "main-table",
     compact = TRUE,
@@ -2342,7 +2342,7 @@ doubles24 |>
     # the details column -- see the note on `markup` for why it is worth it
     details = colDef(
       html = TRUE,
-      details = function(index) markup(dossier(doubles24_df$athlete[index]))
+      details = function(index) markup(dossier(doubles_season_df$athlete[index]))
     ),
     columns = list(
       rank = colDef(name = "#", maxWidth = sm, style = list(color = mute)),
@@ -2361,7 +2361,7 @@ doubles24 |>
         # left, over the end the bars start from -- see the note in `stat_card`
         align = "left",
         cell = function(value) {
-          markup(bar_cell(value, max(doubles24_df$total_points)))
+          markup(bar_cell(value, max(doubles_season_df$total_points)))
         }
       ),
       triple_double = colDef(name = "TD", maxWidth = sm),
@@ -2552,44 +2552,44 @@ ggplotly(
 
 ### Column {.tabset}
 
-```{r tp24}
+```{r tp-season}
 #| title: Points
-stat_card(stat24_dfs$total_points, "total_points", "Points")
+stat_card(stat_season_dfs$total_points, "total_points", "Points")
 ```
 
-```{r ta24}
+```{r ta-season}
 #| title: Assists
-stat_card(stat24_dfs$total_assists, "total_assists", "Assists")
+stat_card(stat_season_dfs$total_assists, "total_assists", "Assists")
 ```
 
-```{r tr24}
+```{r tr-season}
 #| title: Rebounds
-stat_card(stat24_dfs$total_rebounds, "total_rebounds", "Rebounds")
+stat_card(stat_season_dfs$total_rebounds, "total_rebounds", "Rebounds")
 ```
 
-```{r ts24}
+```{r ts-season}
 #| title: Steals
-stat_card(stat24_dfs$total_steals, "total_steals", "Steals")
+stat_card(stat_season_dfs$total_steals, "total_steals", "Steals")
 ```
 
-```{r tb24}
+```{r tb-season}
 #| title: Blocks
-stat_card(stat24_dfs$total_blocks, "total_blocks", "Blocks")
+stat_card(stat_season_dfs$total_blocks, "total_blocks", "Blocks")
 ```
 
-```{r gm24}
+```{r gm-season}
 #| title: Goals
-stat_card(stat24_dfs$goals_made, "goals_made", "Goals")
+stat_card(stat_season_dfs$goals_made, "goals_made", "Goals")
 ```
 
-```{r tm24}
+```{r tm-season}
 #| title: Threes
-stat_card(stat24_dfs$threes_made, "threes_made", "Threes")
+stat_card(stat_season_dfs$threes_made, "threes_made", "Threes")
 ```
 
-```{r tt24}
+```{r tt-season}
 #| title: Turnovers
-stat_card(stat24_dfs$total_turnovers, "total_turnovers", "Turnovers")
+stat_card(stat_season_dfs$total_turnovers, "total_turnovers", "Turnovers")
 ```
 
 # All Time
