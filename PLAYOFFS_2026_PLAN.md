@@ -32,6 +32,10 @@ the playoff page. The plan requires no new framework, service, or dependency.
   games**. The local schedule has 29 playoff slots, and both team names are
   `TBD` in every slot. Twelve slots are for the first round, ten are for the
   semifinals, and seven are for the finals. Some slots are conditional games.
+- Every one of those 29 slots has a national `broadcast_name` in `sched.rds`,
+  including channel names and streaming services. That field identifies one
+  listed outlet per slot. It does not establish that the outlet is the only
+  way to watch the game.
 - The same schedule still marks five September 24 regular-season games as
   scheduled, although their box scores and final scores are present. The
   existing `season_complete` calculation therefore reads `FALSE`. A playoff
@@ -64,14 +68,21 @@ palette, typography, cards, tables, and chart theme.
    bracket before rendering. Advance teams through the published bracket path
    as each series ends. Until a later pairing is known, show `TBD` for that
    pairing. Do not assign the schedule's generic `TBD` game slots to a series.
-2. **Games.** Show a chronological `reactable` of actual playoff games and
-   named upcoming games. Include date and Eastern time, round, series, game
-   number, teams, final score or scheduled status, and broadcaster when the
-   cache supplies it. Label conditional games as conditional and omit them
-   from the default upcoming list after a series is decided. Identify a final
-   game by matching its schedule row to a complete box score and valid scores.
-   Flag a source mismatch before publication if a reported final lacks its
-   box score.
+2. **Games and where to watch.** Show a chronological `reactable` of actual
+   games and upcoming schedule slots. Give each row a prominent **Watch**
+   field beside its Eastern date and time. Include round, series when known,
+   game number, teams or `Teams TBD`, final score or scheduled status, and the
+   watch outlet. Show the cached `broadcast_name` when present. If an official
+   WNBA listing confirms additional ways to watch the same game, list each
+   channel or streaming service by name. Distinguish a national outlet from a
+   local outlet when the source specifies a market. When no outlet is known,
+   say `Broadcast not listed` rather than guessing. Keep `TBD` slots in the
+   schedule so readers can see their watch outlets before matchups are named,
+   but do not assign those slots to a series. Label conditional games as
+   conditional and omit them from the default upcoming list after a series is
+   decided. Identify a final game by matching its schedule row to a complete
+   box score and valid scores. Flag a source mismatch before publication if a
+   reported final lacks its box score.
 3. **Players.** Add a playoff-only `reactable` of points, games played,
    points per game, double-doubles, and triple-doubles. Its expanded row uses
    the existing dossier style for playoff totals, shooting percentages, and a
@@ -111,6 +122,10 @@ and render dates visible.
    `notes_headline`, because the 2026 semifinal `type_id` is unreliable.
    Preserve the schedule's `TBD` and `If Necessary` meanings. Do not infer a
    result from a future row whose placeholder score is `0-0`.
+   Keep each schedule slot's `game_id` attached to its watch information so a
+   later team update does not pair a broadcast with the wrong game. Compare
+   the cache's outlet with the WNBA's game listing and record any additional
+   confirmed channel or streaming service without inventing one.
 4. Reuse the existing `experience` crosstalk group for playoff player widgets
    so player selections work across pages and the navbar Clear control still
    works. Check the team-card roster map against postseason participants,
@@ -126,14 +141,19 @@ and render dates visible.
   and phone widths. Verify that the four first-round pairings match the
   [WNBA bracket](https://www.wnba.com/playoffs/2026), that no `TBD` schedule
   slot becomes a result, and that regular-season statistics remain unchanged.
+  Check that all 29 schedule slots display their cached watch outlet, including
+  slots whose teams are still `TBD`.
 - Exercise the series calculations against completed 2025 playoff games in
   the same caches, including an unused conditional game. Check round labels,
   game order, wins, advancement, and all player denominators by hand.
 - After 2026 playoff games enter the caches, run `just data` and `just render`.
   Compare each displayed series score and several player totals with the WNBA
-  game records. In the rendered browser page, test selection, team filtering,
-  expanded rows, tabsets, keyboard access, and responsive layout. Check the
-  single-file HTML size before considering publication.
+  game records. Compare each game's **Watch** field with the
+  [WNBA's published schedule](https://www.wnba.com/news/2026-wnba-postseason-faq),
+  including any separately listed streaming service. In the rendered browser
+  page, test selection, team filtering, expanded rows, tabsets, keyboard
+  access, and responsive layout. Check the single-file HTML size before
+  considering publication.
 
 Publication is a separate step after review of the implemented page and its
 rendered output. This plan authorizes no implementation or publication.
