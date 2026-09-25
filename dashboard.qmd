@@ -1285,7 +1285,10 @@ record <- team_games |>
 # Whether the regular season has finished. `season_schedule` is this year's
 # regular-season games with the postponement dropped, so every row in it is a
 # game that gets played.
-season_complete <- all(season_schedule$status_type_completed %in% TRUE)
+# Schedule status can lag a complete box score. On September 24, 2026, five
+# finished games still said STATUS_SCHEDULED. A game with a box score has been
+# played, regardless of that stale flag.
+season_complete <- all(season_schedule$game_id %in% season_box$game_id)
 
 # Two numbers that mean the same thing have to compare equal, or the teams
 # holding them never get compared at all: .667 reached as 20-10 and as 22-11 is
@@ -1457,9 +1460,12 @@ champions <- finals |>
 # display name in `data-team`; this map is the bridge between the two. Built
 # from the current-season frame, so selecting an All Time player with no season
 # this year lights no card - correct, since her franchise may not be playing.
-player_team <- doubles_season_df |>
-  filter(!is.na(latest_team)) |>
-  distinct(athlete, latest_team)
+player_team <- dat |>
+  filter(season == this_year, game_kind %in% c("regular", "post")) |>
+  arrange(game_date) |>
+  summarise(latest_team = last(team_display_name), .by = athlete_display_name) |>
+  rename(athlete = athlete_display_name) |>
+  filter(!is.na(latest_team))
 
 player_team <- setNames(as.list(player_team$latest_team), player_team$athlete)
 
@@ -2275,6 +2281,525 @@ stars <- titles |>
   )
 ```
 
+```{r playoffs-2026-prep}
+playoff_year <- 2026L
+
+# The year stays fixed when the current-season page moves on. The published
+# bracket settles the two tied seeds as well as the four first-round pairings:
+# https://www.wnba.com/playoffs/2026
+official_seed_names <- c(
+  "Minnesota Lynx", "Golden State Valkyries", "Las Vegas Aces",
+  "Atlanta Dream", "Washington Mystics", "Indiana Fever",
+  "Dallas Wings", "New York Liberty"
+)
+
+regular_2026 <- dat |>
+  filter(season == playoff_year, game_kind == "regular")
+
+regular_2026_schedule <- sched |>
+  filter(
+    season == playoff_year, game_kind == "regular",
+    status_type_name != "STATUS_POSTPONED"
+  )
+
+regular_team_games <- regular_2026 |>
+  distinct(game_id, team_id, team_display_name, team_abbreviation,
+           team_logo, team_color, team_winner)
+
+regular_team_records <- regular_team_games |>
+  summarise(
+    name = last(team_display_name),
+    abbreviation = last(team_abbreviation),
+    logo = espn_img(last(team_logo), 52),
+    color = accent(last(team_color)),
+    games = n_distinct(game_id),
+    w = sum(team_winner %in% TRUE),
+    l = sum(team_winner %in% FALSE),
+    .by = team_id
+  )
+
+stopifnot(
+  "2026 regular season does not have 330 played games" =
+    n_distinct(regular_2026$game_id) == 330L,
+  "2026 regular schedule does not match its box scores" =
+    setequal(regular_2026_schedule$game_id, regular_2026$game_id),
+  "a 2026 team does not have 44 regular-season games" =
+    nrow(regular_team_records) == 15L && all(regular_team_records$games == 44L),
+  "the official 2026 seeds do not match the top eight records" =
+    setequal(official_seed_names, regular_team_records |>
+      arrange(desc(w), desc(w / (w + l))) |>
+      slice_head(n = 8) |>
+      pull(name)),
+  "the official 2026 seed order does not match the standings" =
+    this_year != playoff_year ||
+      identical(head(standings$name, 8L), official_seed_names)
+)
+
+playoff_seeds <- regular_team_records |>
+  filter(name %in% official_seed_names) |>
+  mutate(seed = match(name, official_seed_names)) |>
+  arrange(seed)
+
+# The schedule has generic future slots. Headlines identify the round even
+# when ESPN's type_id does not: 2026 semifinal slots have type_id 1.
+post_box <- dat |>
+  filter(season == playoff_year, game_kind == "post")
+
+post_team_scores <- post_box |>
+  distinct(game_id, home_away, team_id, team_score, team_display_name)
+
+stopifnot(
+  "a playoff team has conflicting box scores" =
+    all((post_team_scores |> count(game_id, home_away))$n == 1L)
+)
+
+complete_post_team_scores <- post_team_scores |>
+  filter(home_away %in% c("home", "away")) |>
+  group_by(game_id) |>
+  filter(n_distinct(team_id) == 2L, n_distinct(home_away) == 2L,
+         all(!is.na(team_score))) |>
+  ungroup()
+
+post_scores <- if (nrow(complete_post_team_scores) == 0L) {
+  tibble(
+    game_id = integer(), box_home_id = integer(), box_away_id = integer(),
+    home_points = integer(), away_points = integer(),
+    box_home_name = character(), box_away_name = character()
+  )
+} else {
+  complete_post_team_scores |>
+    pivot_wider(
+      id_cols = game_id, names_from = home_away,
+      values_from = c(team_id, team_score, team_display_name),
+      names_glue = "{home_away}_{.value}"
+    ) |>
+    transmute(
+      game_id,
+      box_home_id = as.integer(home_team_id),
+      box_away_id = as.integer(away_team_id),
+      home_points = home_team_score,
+      away_points = away_team_score,
+      box_home_name = home_team_display_name,
+      box_away_name = away_team_display_name
+    )
+}
+
+post_schedule <- sched |>
+  filter(season == playoff_year, game_kind == "post") |>
+  mutate(
+    round = case_when(
+      str_detect(notes_headline, regex("First Round", ignore_case = TRUE)) ~ "First Round",
+      str_detect(notes_headline, regex("Semifinals", ignore_case = TRUE)) ~ "Semifinals",
+      str_detect(notes_headline, regex("WNBA Finals", ignore_case = TRUE)) ~ "Finals",
+      .default = NA_character_
+    ),
+    game_number = as.integer(str_match(notes_headline, "Game ([1-7])")[, 2]),
+    conditional = str_detect(notes_headline, regex("If Necessary", ignore_case = TRUE)),
+    home_id = as.integer(home_id),
+    away_id = as.integer(away_id)
+  ) |>
+  left_join(post_scores, by = "game_id") |>
+  mutate(
+    home_id = coalesce(box_home_id, home_id),
+    away_id = coalesce(box_away_id, away_id),
+    home_display_name = coalesce(box_home_name, home_display_name),
+    away_display_name = coalesce(box_away_name, away_display_name),
+    completed = !is.na(home_points) & !is.na(away_points) &
+      home_points != away_points,
+    winner_id = if_else(
+      completed,
+      if_else(home_points > away_points, home_id, away_id),
+      NA_integer_
+    )
+  )
+
+stopifnot(
+  "unrecognized 2026 playoff round or game number" =
+    !anyNA(post_schedule$round) && !anyNA(post_schedule$game_number),
+  "2026 playoff schedule has duplicate game IDs" =
+    !anyDuplicated(post_schedule$game_id),
+  "a reported final is missing a complete box score" =
+    all(!(post_schedule$status_type_completed %in% TRUE) | post_schedule$completed)
+)
+
+post_team_records <- if (any(post_schedule$completed)) {
+  bind_rows(
+    post_schedule |>
+      filter(completed) |>
+      transmute(team_id = home_id, scored = home_points, allowed = away_points,
+                won = winner_id == home_id),
+    post_schedule |>
+      filter(completed) |>
+      transmute(team_id = away_id, scored = away_points, allowed = home_points,
+                won = winner_id == away_id)
+  ) |>
+    summarise(
+      w = sum(won), l = sum(!won),
+      pf = mean(scored), pa = mean(allowed), .by = team_id
+    )
+} else {
+  tibble(team_id = integer(), w = integer(), l = integer(),
+         pf = double(), pa = double())
+}
+
+# A series is defined by its round and its two team IDs. Future TBD slots
+# cannot be assigned to one, even though their date and broadcaster are known.
+series_state <- function(id, series_round, a_id, b_id, wins_needed) {
+  if (is.na(a_id) || is.na(b_id)) {
+    return(tibble(
+      series_id = id, round = series_round, a_id = a_id, b_id = b_id,
+      a_wins = 0L, b_wins = 0L, wins_needed = wins_needed,
+      winner_id = NA_integer_
+    ))
+  }
+  games <- post_schedule |>
+    filter(
+      .data$round == series_round, completed,
+      (home_id == a_id & away_id == b_id) |
+        (home_id == b_id & away_id == a_id)
+    )
+  a_wins <- sum(games$winner_id == a_id)
+  b_wins <- sum(games$winner_id == b_id)
+  tibble(
+    series_id = id, round = series_round, a_id = a_id, b_id = b_id,
+    a_wins = a_wins, b_wins = b_wins, wins_needed = wins_needed,
+    winner_id = if (a_wins >= wins_needed) a_id else if (b_wins >= wins_needed) b_id else NA_integer_
+  )
+}
+
+seed_id <- playoff_seeds$team_id
+first_round <- bind_rows(
+  series_state(1L, "First Round", seed_id[1], seed_id[8], 2L),
+  series_state(2L, "First Round", seed_id[4], seed_id[5], 2L),
+  series_state(3L, "First Round", seed_id[2], seed_id[7], 2L),
+  series_state(4L, "First Round", seed_id[3], seed_id[6], 2L)
+)
+semifinals <- bind_rows(
+  series_state(5L, "Semifinals", first_round$winner_id[1], first_round$winner_id[2], 3L),
+  series_state(6L, "Semifinals", first_round$winner_id[3], first_round$winner_id[4], 3L)
+)
+final_series <- series_state(
+  7L, "Finals", semifinals$winner_id[1], semifinals$winner_id[2], 4L
+)
+playoff_series <- bind_rows(first_round, semifinals, final_series)
+
+pair_key <- function(a, b) {
+  ifelse(is.na(a) | is.na(b) | a < 0 | b < 0,
+         NA_character_, paste(pmin(a, b), pmax(a, b), sep = ":"))
+}
+
+playoff_series <- playoff_series |>
+  mutate(pair = pair_key(a_id, b_id))
+round_status <- playoff_series |>
+  summarise(round_decided = all(!is.na(winner_id)), .by = round)
+post_schedule <- post_schedule |>
+  mutate(pair = pair_key(home_id, away_id)) |>
+  left_join(
+    playoff_series |>
+      select(round, pair, series_id, series_winner = winner_id),
+    by = c("round", "pair"), na_matches = "never"
+  ) |>
+  left_join(round_status, by = "round")
+
+stopifnot(
+  "a played playoff game has no bracket series" =
+    all(!post_schedule$completed | !is.na(post_schedule$series_id))
+)
+
+# ESPN's schedule names one outlet. The league also names simulcasts for
+# particular 2026 slots: https://www.wnba.com/news/2026-wnba-postseason-faq
+watch_options <- function(outlet, round) {
+  case_when(
+    is.na(outlet) | outlet == "" ~ "Broadcast not listed",
+    outlet == "NBC" & round %in% c("Semifinals", "Finals") ~ "NBC / Peacock",
+    outlet == "Peacock" & round == "Semifinals" ~ "Peacock / NBCSN",
+    outlet == "USA Net" & round == "Finals" ~ "USA Network / Peacock",
+    outlet == "USA Net" ~ "USA Network",
+    TRUE ~ outlet
+  )
+}
+
+playoff_schedule <- post_schedule |>
+  filter(!(conditional & !completed &
+             (!is.na(series_winner) | round_decided))) |>
+  mutate(
+    time_tbd = is.na(game_date_time) | hour(game_date_time) == 0L,
+    when = paste0(
+      format(game_date, "%a, %b "), as.integer(format(game_date, "%d")),
+      " · ", if_else(
+        time_tbd, "Time TBD",
+        paste0(format(game_date_time, "%I:%M %p",
+                      tz = "America/New_York"), " ET")
+      )
+    ),
+    matchup = if_else(
+      home_id > 0 & away_id > 0 &
+        home_display_name != "TBD" & away_display_name != "TBD",
+      paste0(away_display_name, " at ", home_display_name),
+      "Teams TBD"
+    ),
+    market = if_else(
+      is.na(broadcast_market) | broadcast_market == "national",
+      "", paste0(" · ", broadcast_market, " market")
+    ),
+    watch = paste0(watch_options(broadcast_name, round), market),
+    game = paste0("Game ", game_number, if_else(conditional, " if necessary", "")),
+    result = if_else(
+      completed,
+      paste0(away_points, "–", home_points, " final"),
+      "Scheduled"
+    ),
+    series = if_else(
+      is.na(series_id), "Pairing pending", paste0("Series ", series_id)
+    )
+  ) |>
+  arrange(game_date, time_tbd, game_date_time, game_id) |>
+  select(when, matchup, watch, market, round, series, game, result,
+         game_id, completed)
+```
+
+```{r playoffs-2026-players}
+post_has_games <- nrow(post_box) > 0L
+playoff_empty <- function() {
+  div(class = "playoff-empty", "No playoff games completed in the current data.")
+}
+
+if (post_has_games) {
+  pdat_post <- player_stats(post_box, season_part = "post", my_season = playoff_year) |>
+    left_join(player_college, by = join_by(athlete))
+
+  post_doubles <- post_box |>
+    transmute(
+      athlete = athlete_display_name,
+      game_id,
+      double_count = rowSums(cbind(
+        points >= 10, rebounds >= 10, assists >= 10,
+        steals >= 10, blocks >= 10
+      ), na.rm = TRUE)
+    ) |>
+    summarise(
+      double_double = sum(double_count >= 2),
+      triple_double = sum(double_count >= 3),
+      .by = athlete
+    )
+
+  post_players <- pdat_post |>
+    left_join(post_doubles, by = "athlete") |>
+    mutate(
+      points_per_game = total_points / total_games,
+      rank = min_rank(desc(total_points))
+    ) |>
+    arrange(rank, athlete) |>
+    select(rank, athlete, total_points, total_games, points_per_game,
+           double_double, triple_double, position, latest_team, everything())
+  post_players_df <- post_players
+  post_players <- SharedData$new(post_players_df, group = "experience", key = ~athlete)
+
+  post_game_log <- post_box |>
+    left_join(post_schedule |> select(game_id, round), by = "game_id") |>
+    arrange(athlete_display_name, game_date, game_id) |>
+    transmute(
+      athlete = athlete_display_name,
+      d = short_date(game_date), round,
+      opp = opponent_team_abbreviation,
+      p = as.integer(points),
+      won = team_winner %in% TRUE
+    ) |>
+    nest(log = c(d, round, opp, p, won))
+
+  post_profile <- post_box |>
+    summarise(
+      shot = espn_img(first(na.omit(athlete_headshot_href)), 220),
+      logo = espn_img(team_logo[which.max(game_date)], 52),
+      color = accent(team_color[which.max(game_date)]),
+      team = team_display_name[which.max(game_date)],
+      pos = first(na.omit(athlete_position_abbreviation)),
+      jersey = first(na.omit(athlete_jersey)),
+      g = n_distinct(game_id),
+      mins = sum(minutes, na.rm = TRUE),
+      pts = sum(points, na.rm = TRUE),
+      reb = sum(rebounds, na.rm = TRUE),
+      ast = sum(assists, na.rm = TRUE),
+      stl = sum(steals, na.rm = TRUE),
+      blk = sum(blocks, na.rm = TRUE),
+      fgm = sum(field_goals_made, na.rm = TRUE),
+      fga = sum(field_goals_attempted, na.rm = TRUE),
+      tpm = sum(three_point_field_goals_made, na.rm = TRUE),
+      tpa = sum(three_point_field_goals_attempted, na.rm = TRUE),
+      ftm = sum(free_throws_made, na.rm = TRUE),
+      fta = sum(free_throws_attempted, na.rm = TRUE),
+      .by = athlete_display_name
+    ) |>
+    rename(athlete = athlete_display_name) |>
+    mutate(
+      mpg = mins / g, ppg = pts / g, rpg = reb / g,
+      apg = ast / g, spg = stl / g, bpg = blk / g,
+      fgp = pct_of(fgm, fga), tpp = pct_of(tpm, tpa),
+      ftp = pct_of(ftm, fta),
+      ts = pct_of(pts, 2 * (fga + 0.44 * fta))
+    ) |>
+    left_join(post_game_log, by = "athlete")
+  post_profile_by <- split(post_profile, post_profile$athlete)
+
+  post_compare_raw <- post_box |>
+    summarise(
+      headshot = espn_img(first(na.omit(athlete_headshot_href)), 120),
+      team = team_name[which.max(game_date)],
+      games = n_distinct(game_id),
+      total_points = sum(points, na.rm = TRUE),
+      ppg = total_points / games,
+      apg = sum(assists, na.rm = TRUE) / games,
+      rpg = sum(rebounds, na.rm = TRUE) / games,
+      spg = sum(steals, na.rm = TRUE) / games,
+      bpg = sum(blocks, na.rm = TRUE) / games,
+      fg_pct = pct_of(sum(field_goals_made, na.rm = TRUE),
+                      sum(field_goals_attempted, na.rm = TRUE)),
+      tp_pct = pct_of(sum(three_point_field_goals_made, na.rm = TRUE),
+                      sum(three_point_field_goals_attempted, na.rm = TRUE)),
+      ft_pct = pct_of(sum(free_throws_made, na.rm = TRUE),
+                      sum(free_throws_attempted, na.rm = TRUE)),
+      .by = athlete_display_name
+    ) |>
+    arrange(desc(total_points), athlete_display_name)
+
+  post_compare_wide <- post_compare_raw |>
+    transmute(
+      athlete = athlete_display_name,
+      Photo = photo_cell(headshot, team),
+      `Games Played` = as.character(games),
+      `Total Points` = as.character(total_points),
+      `Points / Game` = fmt1(ppg),
+      `Assists / Game` = fmt1(apg),
+      `Rebounds / Game` = fmt1(rpg),
+      `Steals / Game` = fmt1(spg),
+      `Blocks / Game` = fmt1(bpg),
+      `FG%` = fmt_pct(fg_pct),
+      `3P%` = fmt_pct(tp_pct),
+      `FT%` = fmt_pct(ft_pct)
+    ) |>
+    pivot_longer(-athlete, names_to = "stat", values_to = "value") |>
+    mutate(stat = if_else(stat == "Photo", "", stat)) |>
+    pivot_wider(names_from = athlete, values_from = value)
+  post_compare_players <- setdiff(names(post_compare_wide), "stat")
+  post_compare_default <- head(post_compare_raw$athlete_display_name, 8)
+
+  post_compare_js <- paste0(
+    "(function() {\n",
+    "  var players = ", jsonlite::toJSON(post_compare_players), ";\n",
+    "  var defaults = ", jsonlite::toJSON(post_compare_default), ";\n",
+    "  window.addEventListener('load', function() {\n",
+    "    var selection = new crosstalk.SelectionHandle('experience');\n",
+    "    var filter = new crosstalk.FilterHandle('experience');\n",
+    "    function apply() {\n",
+    "      var chosen = selection.value;\n",
+    "      var filtered = filter.filteredKeys;\n",
+    "      var shown = chosen && chosen.length ? chosen :\n",
+    "        filtered && filtered.length ? filtered : defaults;\n",
+    "      var hidden = players.filter(function(p) { return shown.indexOf(p) < 0; });\n",
+    "      if (window.Reactable) Reactable.setHiddenColumns('post-compare-table', hidden);\n",
+    "    }\n",
+    "    selection.on('change', apply);\n",
+    "    filter.on('change', apply);\n",
+    "    apply();\n",
+    "  });\n",
+    "})();"
+  )
+
+  post_race <- post_box |>
+    arrange(game_date, game_id) |>
+    mutate(
+      cum_points = cumsum(points),
+      .by = athlete_display_name
+    ) |>
+    transmute(athlete = athlete_display_name,
+              game_date = as_date(game_date), cum_points) |>
+    SharedData$new(group = "experience", key = ~athlete)
+
+  post_points <- post_box |>
+    summarise(
+      n_games = n_distinct(game_id),
+      n_points = sum(points, na.rm = TRUE),
+      .by = athlete_display_name
+    ) |>
+    rename(athlete = athlete_display_name) |>
+    SharedData$new(group = "experience", key = ~athlete)
+
+  post_efficiency_df <- post_box |>
+    summarise(
+      n_games = n_distinct(game_id),
+      fga = sum(field_goals_attempted, na.rm = TRUE),
+      fta = sum(free_throws_attempted, na.rm = TRUE),
+      n_points = sum(points, na.rm = TRUE),
+      .by = athlete_display_name
+    ) |>
+    filter(fga >= 20) |>
+    mutate(
+      fga_per_game = round(fga / n_games, 1),
+      ts_pct = pct_of(n_points, 2 * (fga + 0.44 * fta))
+    ) |>
+    rename(athlete = athlete_display_name)
+  if (nrow(post_efficiency_df) > 0L) {
+    post_efficiency <- SharedData$new(
+      post_efficiency_df, group = "experience", key = ~athlete
+    )
+  }
+
+  stat_post_dfs <- stat_names |>
+    set_names() |>
+    map(\(name) stat(pdat_post, col = {{ name }}))
+}
+
+post_crest_cell <- function(name) {
+  p <- post_profile_by[[name]]
+  logo <- if (is.null(p) || is.na(p$logo)) NULL else {
+    tags$img(src = p$logo, alt = "", width = 18, height = 18,
+             loading = "lazy", style = "object-fit:contain")
+  }
+  div(class = "playoff-athlete", logo, span(name))
+}
+
+post_dossier <- function(name) {
+  p <- post_profile_by[[name]]
+  if (is.null(p)) return(playoff_empty())
+  gl <- p$log[[1]]
+  top <- max(gl$p, 1, na.rm = TRUE)
+  bars <- pmap(
+    list(gl$p, gl$won, gl$d, gl$round, gl$opp),
+    \(points_, won_, date_, round_, opp_) div(
+      class = "dsr-bar",
+      style = paste0("height:", max(round(100 * points_ / top), 3), "%"),
+      title = paste0(date_, " · ", round_, " vs ", opp_, ": ",
+                     points_, " pts (", if (won_) "W" else "L", ")")
+    )
+  )
+  div(
+    class = "dossier", style = paste0("--team:", p$color),
+    div(class = "dsr-id",
+        if (is.na(p$shot)) NULL else
+          tags$img(class = "dsr-shot", src = p$shot, alt = "", loading = "lazy"),
+        div(class = "dsr-name", name),
+        div(class = "dsr-meta", paste(c(
+          if (!is.na(p$jersey)) paste0("#", p$jersey), p$pos, p$team
+        ), collapse = " · "))),
+    div(class = "dsr-body",
+        div(class = "dsr-grid",
+            stat_cell("Games", p$g),
+            stat_cell("Min/G", fmt1(p$mpg)),
+            stat_cell("Pts/G", fmt1(p$ppg), lead = TRUE),
+            stat_cell("Reb/G", fmt1(p$rpg)),
+            stat_cell("Ast/G", fmt1(p$apg)),
+            stat_cell("Stl/G", fmt1(p$spg)),
+            stat_cell("Blk/G", fmt1(p$bpg)),
+            stat_cell("FG%", fmt_pct(p$fgp)),
+            stat_cell("3P%", fmt_pct(p$tpp)),
+            stat_cell("FT%", fmt_pct(p$ftp)),
+            stat_cell("TS%", fmt_pct(p$ts))),
+        div(class = "dsr-logtitle", "Points in each playoff game. Hover for the date, round, opponent, and result."),
+        div(class = "dsr-log", bars))
+  )
+}
+```
+
 # `r this_year`
 
 ## Row {height=88px}
@@ -2590,6 +3115,339 @@ stat_card(stat_season_dfs$threes_made, "threes_made", "Threes")
 ```{r tt-season}
 #| title: Turnovers
 stat_card(stat_season_dfs$total_turnovers, "total_turnovers", "Turnovers")
+```
+
+# 2026 Playoffs
+
+```{r playoff-card-helpers}
+playoff_team_line <- function(team_id, series_wins, winner_id) {
+  if (is.na(team_id)) {
+    return(div(class = "ps-team pending", span(class = "ps-team-name", "TBD")))
+  }
+  team <- playoff_seeds |> filter(.data$team_id == .env$team_id)
+  record <- post_team_records |> filter(.data$team_id == .env$team_id)
+  detail <- if (nrow(record) == 0L) {
+    "No playoff games"
+  } else {
+    sprintf("%d–%d · scores %.1f, allows %.1f per game",
+            record$w, record$l, record$pf, record$pa)
+  }
+  div(
+    class = paste("ps-team", if (!is.na(winner_id) && winner_id == team_id) "advanced"),
+    style = paste0("--team:", team$color),
+    div(class = "ps-team-top",
+        if (is.na(team$logo)) NULL else
+          tags$img(src = team$logo, alt = "", loading = "lazy"),
+        span(class = "ps-seed", paste0("#", team$seed)),
+        span(class = "ps-team-name", team$name),
+        span(class = "ps-wins", series_wins)),
+    div(class = "ps-team-detail", detail)
+  )
+}
+
+playoff_series_card <- function(row) {
+  status <- if (is.na(row$a_id) || is.na(row$b_id)) {
+    "Pairing pending"
+  } else if (!is.na(row$winner_id)) {
+    "Series final"
+  } else if (row$a_wins + row$b_wins > 0L) {
+    "Series in progress"
+  } else {
+    "Series not started"
+  }
+  div(
+    class = "ps-series",
+    div(class = "ps-series-head",
+        span(paste0("Series ", row$series_id)),
+        span(paste0("Best of ", 2L * row$wins_needed - 1L))),
+    playoff_team_line(row$a_id, row$a_wins, row$winner_id),
+    playoff_team_line(row$b_id, row$b_wins, row$winner_id),
+    div(class = "ps-series-status", status)
+  )
+}
+
+playoff_stage <- function(title, rows) {
+  div(
+    class = "ps-stage",
+    div(class = "ps-stage-title", title),
+    div(class = "ps-stage-series",
+        lapply(seq_len(nrow(rows)), \(i) playoff_series_card(rows[i, ])))
+  )
+}
+
+playoff_leader <- function(col, label) {
+  if (!post_has_games) return(playoff_empty())
+  stat_card(stat_post_dfs[[col]], col, label)
+}
+```
+
+## Row {height=520px}
+
+```{r playoff-bracket}
+#| title: 2026 bracket · wins in each series
+div(
+  id = "playoff-bracket",
+  playoff_stage("First round · best of three", first_round),
+  playoff_stage("Semifinals · best of five", semifinals),
+  playoff_stage("Finals · best of seven", final_series)
+)
+```
+
+## Row {height=580px}
+
+```{r playoff-games}
+#| title: Game schedule · where to watch
+tagList(
+  playoff_schedule |>
+    select(when, matchup, watch, round, series, game, result) |>
+    reactable(
+      elementId = "playoff-games-table",
+      compact = TRUE,
+      highlight = TRUE,
+      striped = TRUE,
+      searchable = TRUE,
+      defaultPageSize = 15,
+      theme = court_theme,
+      columns = list(
+        when = colDef(name = "Date · ET", minWidth = 170, sortable = FALSE),
+        matchup = colDef(name = "Game", minWidth = 220, sortable = FALSE),
+        watch = colDef(
+          name = "Watch", minWidth = 155, sortable = FALSE,
+          html = TRUE,
+          cell = function(value) markup(div(class = "ps-watch", value))
+        ),
+        round = colDef(name = "Round", minWidth = 95),
+        series = colDef(name = "Series", minWidth = 100),
+        game = colDef(name = "Number", minWidth = 125),
+        result = colDef(name = "Result", minWidth = 100)
+      )
+    ),
+  div(
+    class = "ps-games-mobile",
+    lapply(seq_len(nrow(playoff_schedule)), function(i) {
+      game <- playoff_schedule[i, ]
+      div(
+        class = "ps-game-mobile",
+        div(class = "ps-game-mobile-meta",
+            span(game$when), span(paste(game$round, game$game, sep = " · "))),
+        div(class = "ps-game-mobile-matchup", game$matchup),
+        div(class = "ps-game-mobile-watch",
+            span("Watch"), strong(game$watch)),
+        div(class = "ps-game-mobile-result", game$result)
+      )
+    })
+  ),
+  div(class = "ps-source",
+      "Watch listings: ESPN schedule and ",
+      tags$a(href = "https://www.wnba.com/news/2026-wnba-postseason-faq",
+             "WNBA postseason schedule", target = "_blank", rel = "noopener noreferrer"),
+      ". Times and outlets may change. 'If necessary' games depend on series results.")
+)
+```
+
+## Row {height=490px}
+
+### Column {width=46%}
+
+```{r playoff-players}
+#| title: Playoff players · expand for game log, click to select
+if (!post_has_games) {
+  playoff_empty()
+} else {
+  post_players |>
+    reactable(
+      elementId = "post-main-table",
+      compact = TRUE,
+      highlight = TRUE,
+      striped = TRUE,
+      defaultPageSize = 20,
+      defaultSorted = list(total_points = "desc"),
+      selection = "multiple",
+      onClick = "select",
+      rowStyle = list(cursor = "pointer"),
+      theme = court_theme,
+      details = colDef(
+        html = TRUE,
+        details = function(index) markup(post_dossier(post_players_df$athlete[index]))
+      ),
+      columns = list(
+        rank = colDef(name = "#", maxWidth = sm, style = list(color = mute)),
+        athlete = colDef(name = "Athlete", minWidth = 150, filterable = TRUE,
+                         html = TRUE,
+                         cell = function(value) markup(post_crest_cell(value))),
+        total_points = colDef(name = "Points", maxWidth = 85),
+        total_games = colDef(name = "GP", maxWidth = sm),
+        points_per_game = colDef(name = "Pts/G", maxWidth = 75,
+                                 cell = function(value) fmt1(value)),
+        double_double = colDef(name = "DD", maxWidth = sm),
+        triple_double = colDef(name = "TD", maxWidth = sm),
+        position = colDef(name = "Pos", maxWidth = md, filterable = TRUE),
+        latest_team = colDef(show = FALSE),
+        ppg = colDef(show = FALSE),
+        total_assists = colDef(show = FALSE),
+        total_rebounds = colDef(show = FALSE),
+        total_steals = colDef(show = FALSE),
+        total_blocks = colDef(show = FALSE),
+        goals_made = colDef(show = FALSE),
+        threes_made = colDef(show = FALSE),
+        frees_made = colDef(show = FALSE),
+        total_turnovers = colDef(show = FALSE),
+        total_fouls = colDef(show = FALSE),
+        total_ejections = colDef(show = FALSE),
+        seasons = colDef(show = FALSE),
+        college = colDef(show = FALSE)
+      )
+    )
+}
+```
+
+### Column {width=54%}
+
+```{r playoff-compare}
+#| title: Compare playoff players
+if (!post_has_games) {
+  playoff_empty()
+} else {
+  tagList(
+    reactable(
+      post_compare_wide,
+      elementId = "post-compare-table",
+      sortable = FALSE,
+      pagination = FALSE,
+      compact = TRUE,
+      theme = court_theme,
+      defaultColDef = colDef(show = FALSE, html = TRUE, align = "center",
+                             vAlign = "center", minWidth = 100),
+      columns = c(
+        list(stat = colDef(show = TRUE, html = FALSE, name = "",
+                           align = "left", sticky = "left", minWidth = lg,
+                           style = list(fontWeight = "600"))),
+        map(set_names(post_compare_default), \(x) colDef(show = TRUE))
+      )
+    ),
+    div(class = "compare-hint",
+        "Default: eight leading playoff scorers by total points. Select players to compare."),
+    tags$script(HTML(post_compare_js))
+  )
+}
+```
+
+## Row {height=470px}
+
+### Column {width=50% .tabset}
+
+```{r playoff-race}
+#| title: Scoring race
+if (!post_has_games) {
+  playoff_empty()
+} else {
+  race_plot <- post_race |>
+    ggplot(aes(x = game_date, y = cum_points, group = athlete)) +
+    geom_line(color = wnba_orange, linewidth = 0.3, alpha = 0.4) +
+    geom_point(color = wnba_orange, size = 0.8, alpha = 0.5) +
+    labs(title = "Cumulative Playoff Points", x = NULL, y = "Points Scored") +
+    court_gg
+  ggplotly(race_plot, tooltip = c("athlete", "game_date", "cum_points")) |>
+    highlight(color = "#ffffff", opacityDim = 0.35,
+              selected = attrs_selected(line = list(width = 3.5))) |>
+    basic_bundle() |>
+    hover("%{customdata[0]}<br>%{customdata[1]} · %{y:,} pts",
+          custom = function(tr) {
+            unname(Map(c, tr$key,
+                       short_date(as.Date(tr$x, origin = "1970-01-01"))))
+          })
+}
+```
+
+```{r playoff-points}
+#| title: Points and games
+if (!post_has_games) {
+  playoff_empty()
+} else {
+  points_plot <- post_points |>
+    ggplot(aes(x = n_games, y = n_points, group = athlete)) +
+    geom_point(size = 2, color = wnba_orange) +
+    labs(title = "Points in the 2026 Playoffs",
+         x = "Playoff Games Played", y = "Points Scored") +
+    court_gg
+  ggplotly(points_plot, tooltip = c("athlete", "n_games", "n_points")) |>
+    highlight(color = "#ffffff", opacityDim = 0.35,
+              selected = attrs_selected(marker = list(size = 12))) |>
+    basic_bundle() |>
+    hover("%{customdata[0]}<br>%{customdata[1]} in %{customdata[2]}",
+          custom = function(tr) {
+            unname(Map(c, tr$key, counted(tr$y, "point"),
+                       counted(tr$x, "game")))
+          })
+}
+```
+
+### Column {width=50%}
+
+```{r playoff-efficiency}
+#| title: Shooting efficiency
+if (!post_has_games) {
+  playoff_empty()
+} else if (nrow(post_efficiency_df) == 0L) {
+  div(class = "playoff-empty",
+      "Efficiency appears after a player attempts 20 playoff field goals.")
+} else {
+  efficiency_plot <- post_efficiency |>
+    ggplot(aes(x = fga_per_game, y = ts_pct, group = athlete)) +
+    geom_point(size = 2, color = wnba_orange) +
+    labs(title = "Shooting Efficiency vs Volume",
+         x = "Field Goal Attempts per Game", y = "True Shooting %") +
+    court_gg
+  ggplotly(efficiency_plot, tooltip = c("athlete", "fga_per_game", "ts_pct")) |>
+    highlight(color = "#ffffff", opacityDim = 0.35,
+              selected = attrs_selected(marker = list(size = 12))) |>
+    basic_bundle() |>
+    hover("%{customdata}<br>%{x:.1f} shots a game · %{y:.1f}% true shooting")
+}
+```
+
+## Row {height=585px}
+
+### Column {.tabset}
+
+```{r playoff-leaders-points}
+#| title: Points
+playoff_leader("total_points", "Points")
+```
+
+```{r playoff-leaders-assists}
+#| title: Assists
+playoff_leader("total_assists", "Assists")
+```
+
+```{r playoff-leaders-rebounds}
+#| title: Rebounds
+playoff_leader("total_rebounds", "Rebounds")
+```
+
+```{r playoff-leaders-steals}
+#| title: Steals
+playoff_leader("total_steals", "Steals")
+```
+
+```{r playoff-leaders-blocks}
+#| title: Blocks
+playoff_leader("total_blocks", "Blocks")
+```
+
+```{r playoff-leaders-goals}
+#| title: Goals
+playoff_leader("goals_made", "Goals")
+```
+
+```{r playoff-leaders-threes}
+#| title: Threes
+playoff_leader("threes_made", "Threes")
+```
+
+```{r playoff-leaders-turnovers}
+#| title: Turnovers
+playoff_leader("total_turnovers", "Turnovers")
 ```
 
 # All Time

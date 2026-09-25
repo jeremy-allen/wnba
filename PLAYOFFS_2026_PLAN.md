@@ -1,6 +1,7 @@
 # Plan: 2026 playoff page
 
-Status: proposal for review. No dashboard code or data has been changed for this plan.
+Status: approved for implementation on September 25, 2026. Publication remains
+subject to a separate review.
 
 ## What the dashboard already tracks
 
@@ -156,4 +157,4 @@ and render dates visible.
   considering publication.
 
 Publication is a separate step after review of the implemented page and its
-rendered output. This plan authorizes no implementation or publication.
+rendered output. The implementation approval did not authorize publication.

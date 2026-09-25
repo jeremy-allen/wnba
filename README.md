@@ -10,9 +10,9 @@ A cross-filtering dashboard of WNBA player and franchise history, built with
 
 ![The dashboard's current-season page: a column of team standings cards down the left, a sortable player table in the middle, a comparison table on the right showing the top ten scorers side by side, and a points leaderboard and champions list below.](images/dashboard.jpg)
 
-The dashboard is one HTML file of 7.6 MB. No server runs behind it and no Shiny
-process. Everything below happens in the reader's browser after a single
-download:
+The dashboard is one self-contained HTML file. The current local render is
+about 8.6 MB. No server or Shiny process runs behind it. Everything below
+happens in the reader's browser after one download:
 
 - Click a player in any table, and every other table and chart updates:
   leaderboards narrow to her, charts reduce the opacity of the other players,
@@ -20,23 +20,25 @@ download:
   its ten default columns with the players selected.
 - Click a team card and every table and chart filters to that roster.
 - Expand any row for a portrait, splits, and a game-by-game bar chart.
-- Sort, filter, and page through 20 tables, and hover any of the 6 charts for
-  tooltips.
+- Sort, filter, and page through the tables, and hover charts for tooltips.
+- On the **2026 Playoffs** page, check the bracket and the **Watch** listing for
+  each scheduled game, including games whose teams remain undecided.
 
 The standard packages produce almost all of that behavior. The
 [second half of this README](#interactivity-without-a-server) measures how much
-they do on their own, marks where they stop, and explains what the ~190 lines of
-custom JavaScript handle.
+they do on their own, marks where they stop, and explains the small amount of
+custom JavaScript.
 
 ---
 
 ## The dashboard
 
-Four pages:
+Five pages:
 
 | Page | What's on it |
 |---|---|
 | **2026** | Standings cards, a player table with expandable panels, a comparison table, scoring-race / efficiency / points charts, eight stat leaderboards, and the champions list |
+| **2026 Playoffs** | A seeded bracket, a game schedule with a **Watch** listing for each slot, playoff player totals and game logs, comparison views, charts, and eight playoff leaderboards. Before the first playoff game, the player views explain that no playoff games have been completed. |
 | **All Time** | Career leaders with expandable career panels; a tabset of time on the court, The Chase (every career worth 1,500+ points), career efficiency, three-point and attendance trends; and eight career leaderboards |
 | **Franchises** | Franchise lineage: every rename and relocation the league has had, drawn as a timeline |
 | **Methods** | The rules below, stated on the page itself |
@@ -66,8 +68,10 @@ rebuilt without a data refresh.
 
 ### How games and stats are computed
 
-**Regular season only** (`game_kind == "regular"`). All-Star exhibitions, the
-Commissioner's Cup and every playoff round are excluded, career totals included.
+The **2026** and **All Time** pages count regular-season games only
+(`game_kind == "regular"`). The **2026 Playoffs** page counts playoff games only
+(`game_kind == "post"`). All-Star exhibitions and the Commissioner's Cup are
+excluded from both kinds of player totals. Career totals exclude playoff games.
 The data load sorts each game once, because neither column in the schedule
 carries the answer alone. `type_id` names a *round*, and the playoff rounds only
 exist from 2019 on, so every playoff game from 2004 through 2018 looks like a
@@ -99,11 +103,19 @@ missed into her denominator, which pulls every per-game average below ESPN's.
 divides by games played on that same definition, so games missed never enter the
 denominator.
 
-**Who qualifies for a ranking.** The comparison table applies the league's own
+**Who qualifies for a ranking.** The 2026 regular-season comparison table applies the league's own
 scoring minimum, 70% of the games her team has played, or 525 points. Those
 [minimums](https://stats.wnba.com/help/statminimums/) are written per season and
 gate season leaders. Career totals take none, because the league applies none to
-its all-time lists.
+its all-time lists. The playoff comparison table applies no regular-season
+minimum and shows playoff games played beside each per-game rate.
+
+The playoff page reads game dates and broadcast outlets from the schedule cache.
+It adds confirmed simulcasts from the [WNBA's 2026 postseason
+FAQ](https://www.wnba.com/news/2026-wnba-postseason-faq). A scheduled slot can
+name an outlet before its teams are known. The page labels conditional games
+and stops showing an unplayed conditional slot once its decided series can be
+identified, or once every series in that round is decided.
 
 📄 **[METHODOLOGY.md](METHODOLOGY.md)** states the full rules, what the 2004
 floor costs each pre-2004 career, and how the rest measures against the league's
@@ -134,9 +146,9 @@ No other code connects the widgets. There is no event bus, no observer, no
 callback registry, and no code anywhere in this repository that reads a click in
 one widget and updates another.
 
-**24 of this dashboard's 26 widgets join that group**: 18 of the 20 reactables
-and all 6 plotly charts. The custom JavaScript exists to handle the two that do
-not, described below.
+The player tables and interactive charts join that group across the 2026,
+2026 Playoffs, and All Time pages. The comparison tables need custom JavaScript
+because players are columns there, as described below.
 
 ### What the standard packages do on their own
 
@@ -203,9 +215,8 @@ standings script passes the team name to it through `Reactable.setMeta()`, and a
 `rowClass = JS(...)` callback reads that metadata on every render, so the
 highlight survives a sort. A class written onto the rows once would not.
 
-Those four cases come to **~190 lines of JavaScript in a 2,350-line document,
-about 8%.** None of it computes anything. It reads no data and builds no table
-markup. It defines no event system of its own. Every line either
+These scripts compute no statistics. They read no data, build no table markup,
+and define no event system of their own. Every line either
 instantiates a documented crosstalk handle, calls a documented `Reactable.*`
 method, or toggles a CSS class. The visual states themselves live in
 `styles.scss`: `.is-selected`, `.is-filtering`, `.is-bounce` with its
@@ -235,8 +246,8 @@ still requires Shiny.
 ### Keeping the file size down
 
 Because the page carries all of its data and markup, its size needs watching.
-Five changes took this one from **14.7 MB to 7.6 MB (−48%; 2.65 MB → 1.43 MB
-gzipped)** on identical data:
+Before the playoff page was added, five changes took a render from **14.7 MB to
+7.6 MB (−48%; 2.65 MB → 1.43 MB gzipped)** on identical data:
 
 | Saved | Measure | Where |
 |---:|---|---|
@@ -266,7 +277,8 @@ Three of those generalise to any Quarto page using these widgets:
   at which point the script can go.
 
 📄 **[FILESIZE.md](FILESIZE.md)** records every measurement and the gotchas
-behind each one. It also accounts for the 7.6 MB that remains.
+behind each one in that earlier render. The current render is larger because it
+includes the playoff page.
 
 ---
 

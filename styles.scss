@@ -540,6 +540,235 @@ table,
 }
 
 // ---------------------------------------------------------------------------
+// 2026 playoffs: bracket, schedule, and player details
+// ---------------------------------------------------------------------------
+
+#playoff-bracket {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 0.75rem;
+  align-content: start;
+  height: 100%;
+  overflow-y: auto;
+  padding: 0.5rem;
+}
+
+.ps-stage {
+  min-width: 0;
+}
+
+.ps-stage-title {
+  margin: 0 0 0.5rem;
+  color: var(--headline);
+  font-family: var(--display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.ps-stage-series {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.55rem;
+}
+
+.ps-stage:first-child .ps-stage-series {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ps-series {
+  min-width: 0;
+  padding: 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel-2);
+}
+
+#playoff-bracket .ps-series-head,
+#playoff-bracket .ps-series-status {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  color: var(--mute);
+  font-size: 0.82rem;
+}
+
+.ps-series-head {
+  margin-bottom: 0.45rem;
+}
+
+.ps-series-status {
+  margin-top: 0.4rem;
+}
+
+.ps-team {
+  margin: 0.25rem 0;
+  padding: 0.4rem 0.45rem;
+  border-left: 3px solid var(--team);
+  background: var(--panel);
+}
+
+.ps-team.pending {
+  border-left-color: var(--line);
+  color: var(--mute);
+}
+
+.ps-team.advanced {
+  background: color-mix(in srgb, var(--team) 13%, var(--panel));
+}
+
+#playoff-bracket .ps-team-top,
+.playoff-athlete {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.ps-team-top img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+.ps-seed {
+  color: var(--mute);
+  font-size: 0.8rem;
+}
+
+.ps-team-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.ps-wins {
+  color: var(--team);
+  font-family: var(--display);
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.ps-team-detail {
+  padding-left: 2.6rem;
+  color: var(--mute);
+  font-size: 0.78rem;
+}
+
+.ps-watch {
+  color: var(--orange-hi);
+  font-weight: 700;
+  white-space: normal;
+}
+
+.ps-games-mobile {
+  display: none;
+}
+
+.ps-game-mobile {
+  padding: 0.8rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.ps-game-mobile-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  color: var(--mute);
+  font-size: 0.8rem;
+}
+
+.ps-game-mobile-matchup {
+  margin-top: 0.4rem;
+  font-weight: 700;
+}
+
+.ps-game-mobile-watch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+.ps-game-mobile-watch span {
+  color: var(--mute);
+}
+
+.ps-game-mobile-watch strong {
+  color: var(--orange-hi);
+}
+
+.ps-game-mobile-result {
+  margin-top: 0.35rem;
+  color: var(--mute);
+  font-size: 0.8rem;
+}
+
+.ps-source {
+  padding: 0.65rem 0.75rem;
+  color: var(--mute);
+  font-size: 0.85rem;
+}
+
+.playoff-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 150px;
+  padding: 1.5rem;
+  color: var(--mute);
+  text-align: center;
+}
+
+.playoff-athlete img {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+}
+
+#post-main-table .rt-table {
+  container-type: inline-size;
+}
+
+#post-main-table .dossier {
+  max-width: 100cqw;
+}
+
+#post-compare-table .rt-td-inner,
+#post-compare-table .rt-th-inner {
+  padding: 10px;
+}
+
+@media (max-width: 1000px) {
+  #playoff-bracket {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .ps-stage-series {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .ps-stage-series,
+  .ps-stage:first-child .ps-stage-series {
+    grid-template-columns: 1fr;
+  }
+
+  #playoff-games-table {
+    display: none;
+  }
+
+  .ps-games-mobile {
+    display: block;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Compare table
 // ---------------------------------------------------------------------------
 

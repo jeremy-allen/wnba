@@ -26,9 +26,9 @@ data, because rendering fetches nothing.
 
 ## Which games count
 
-Every player and team figure on this dashboard counts **regular-season games
-only**. The champions list is the single exception, because it reads the playoff
-schedule to find who won each season's final.
+The **2026** and **All Time** player and team figures count regular-season games
+only. The **2026 Playoffs** page counts playoff games only. The champions list
+reads the playoff schedule to identify each season's champion.
 
 The data load sorts each game once, into a `game_kind` that every later filter
 reads:
@@ -61,8 +61,45 @@ six-digit ids to new franchises as well as to exhibition rosters, so the
 threshold would delete Golden State, Toronto and Portland along with the
 exhibitions.
 
-**Playoff performances therefore appear in no player or team figure**, career
-totals included.
+Playoff performances appear only on the 2026 Playoffs page. Career totals
+exclude playoff games.
+
+## How the 2026 playoff page works
+
+The 2026 playoff page keeps its year fixed at 2026 when the current-season page
+advances. It checks that the 2026 regular-season box scores contain 330 games
+and that each of the 15 teams played 44 games. It checks the eight playoff
+seeds against the final standings and the [WNBA's published 2026
+bracket](https://www.wnba.com/playoffs/2026). The first round is best of three,
+the semifinals are best of five, and the finals are best of seven.
+
+The page groups completed games by playoff round and team pair. For a completed
+game, the box score supplies the home and away teams and their points, even if
+the schedule still lists undecided teams. The schedule supplies the game's date
+and broadcast outlet. The page counts a series win only when both teams have
+box-score points and one team scored more.
+The playoff round and game number come from the schedule headline. The 2026
+semifinal schedule slots have `type_id == 1`, so that field alone would
+misclassify the round. Future schedule slots with undecided teams remain
+unassigned to a series. The page removes an unplayed conditional slot from the
+game schedule when its decided series can be identified, or when every series
+in that round is decided.
+
+Each game's **Watch** listing starts with the schedule cache's
+`broadcast_name`. The page adds channels or streaming services that the
+[WNBA's 2026 postseason FAQ](https://www.wnba.com/news/2026-wnba-postseason-faq)
+confirms for the same slot. A missing outlet appears as `Broadcast not listed`.
+Dates and times use Eastern time, and a slot without a confirmed tipoff says
+`Time TBD`. The outlet and time can change after a dashboard render, so the
+navbar's **Rendered** date identifies the age of the listing.
+
+The playoff player tables and charts count playoff games played under the
+box-score rule below. They apply no regular-season qualification minimum. The
+playoff comparison table shows games played beside per-game rates. The playoff
+efficiency chart requires 20 playoff field-goal attempts, a display floor for
+this chart rather than an official statistical minimum. Before a playoff box
+score exists, each playoff statistics area says that no playoff games have been
+completed in the current data.
 
 ## What counts as a game played
 
@@ -133,8 +170,8 @@ season's work, and a career total already carries the volume that a minimum
 tests for. All eight All Time leaderboards rank totals, so the rule has no work
 to do on that page.
 
-The two shooting-efficiency scatters keep a floor of their own, 50 field-goal
-attempts for the season chart and 500 for the career one, rather than the
+The regular-season and career shooting-efficiency scatters keep floors of their
+own, 50 field-goal attempts for the season chart and 500 for the career one, rather than the
 league's 100 made field goals. Each scatter draws a distribution rather than a
 ranking, and the league's minimum would leave 65 of this season's 228 players on
 the page. Should a percentage ever get ranked here, the minimums for it are 100
@@ -204,6 +241,6 @@ the totals here run slightly light: Diana Taurasi at 10,525 against the league's
 rather than to any rule on this page, and nothing here works around it.
 
 Two rules of this dashboard put its career totals below other sources by
-design. Playoff performances are excluded, so every total runs below a source
-that counts postseason play. Seasons before 2004 are absent, so a career that
+design. Career totals exclude playoff performances, so every career total runs
+below a source that counts postseason play. Seasons before 2004 are absent, so a career that
 began earlier runs below a source that starts at 1997.
