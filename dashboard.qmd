@@ -2554,8 +2554,9 @@ playoff_schedule <- post_schedule |>
     )
   ) |>
   arrange(game_date, time_tbd, game_date_time, game_id) |>
+  mutate(date_class = paste0("ps-date-", (dense_rank(game_date) - 1L) %% 3L + 1L)) |>
   select(when, matchup, watch, market, round, series, game, result,
-         game_id, completed)
+         game_id, completed, date_class)
 ```
 
 ```{r playoffs-2026-players}
@@ -3204,7 +3205,8 @@ tagList(
       elementId = "playoff-games-table",
       compact = TRUE,
       highlight = TRUE,
-      striped = TRUE,
+      striped = FALSE,
+      rowClass = function(index) playoff_schedule$date_class[index],
       searchable = TRUE,
       defaultPageSize = 15,
       theme = court_theme,
@@ -3227,7 +3229,7 @@ tagList(
     lapply(seq_len(nrow(playoff_schedule)), function(i) {
       game <- playoff_schedule[i, ]
       div(
-        class = "ps-game-mobile",
+        class = paste("ps-game-mobile", game$date_class),
         div(class = "ps-game-mobile-meta",
             span(game$when), span(paste(game$round, game$game, sep = " · "))),
         div(class = "ps-game-mobile-matchup", game$matchup),

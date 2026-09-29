@@ -668,6 +668,26 @@ table,
   display: none;
 }
 
+// Assign colors by date so sorting and searching preserve each date's group.
+#playoff-games-table .ps-date-1,
+.ps-game-mobile.ps-date-1 {
+  background-color: #20313b;
+}
+
+#playoff-games-table .ps-date-2,
+.ps-game-mobile.ps-date-2 {
+  background-color: #302b40;
+}
+
+#playoff-games-table .ps-date-3,
+.ps-game-mobile.ps-date-3 {
+  background-color: #29372f;
+}
+
+#playoff-games-table .rt-tr-highlight:hover {
+  box-shadow: inset 0 0 0 1px var(--mute);
+}
+
 .ps-game-mobile {
   padding: 0.8rem;
   border-bottom: 1px solid var(--line);
