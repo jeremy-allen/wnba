@@ -671,17 +671,17 @@ table,
 // Assign colors by date so sorting and searching preserve each date's group.
 #playoff-games-table .ps-date-1,
 .ps-game-mobile.ps-date-1 {
-  background-color: #20313b;
+  background-color: #17445c;
 }
 
 #playoff-games-table .ps-date-2,
 .ps-game-mobile.ps-date-2 {
-  background-color: #302b40;
+  background-color: #4b305f;
 }
 
 #playoff-games-table .ps-date-3,
 .ps-game-mobile.ps-date-3 {
-  background-color: #29372f;
+  background-color: #244e39;
 }
 
 #playoff-games-table .rt-tr-highlight:hover {
@@ -697,7 +697,7 @@ table,
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem 0.75rem;
-  color: var(--mute);
+  color: var(--bone);
   font-size: 0.8rem;
 }
 
@@ -714,7 +714,7 @@ table,
 }
 
 .ps-game-mobile-watch span {
-  color: var(--mute);
+  color: var(--bone);
 }
 
 .ps-game-mobile-watch strong {
@@ -723,7 +723,7 @@ table,
 
 .ps-game-mobile-result {
   margin-top: 0.35rem;
-  color: var(--mute);
+  color: var(--bone);
   font-size: 0.8rem;
 }
 
