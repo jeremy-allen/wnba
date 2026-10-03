@@ -15,7 +15,9 @@
 # 2. Mirror lag. Those release files are a mirror that can run a few days behind
 #    ESPN, and the release asset is re-uploaded on a schedule whether or not new
 #    games were ingested -- so a fresh timestamp does not mean fresh data. The
-#    top-up step fills the tail straight from ESPN.
+#    top-up step fills the tail straight from ESPN, and the upcoming-games step
+#    refreshes the games not yet played, which the mirror holds as placeholders
+#    (teams TBD, no tip-off time) long after ESPN has filled them in.
 
 library(wehoop)
 library(arrow) # required: see note 1 above
@@ -51,15 +53,9 @@ stopifnot(
 
 # ---- ESPN top-up ------------------------------------------------------------
 
-# Completed games ESPN has for a single date, as schedule rows matching the
-# columns dashboard.qmd reads out of sched.
-#
-# Read from the raw ESPN endpoint rather than wehoop::espn_wnba_scoreboard()
-# because that helper drops competitions[].type, which carries the authoritative
-# type_id. type_id cannot be derived from season_type: season_type 2 covers
-# regular season (1), All-Star (4) and Commissioner's Cup (39) alike, and the
-# dashboard filters on type_id == 1, so guessing would pollute the leaderboards.
-espn_final_games <- function(on_date) {
+# The events ESPN's scoreboard lists for `dates`: one day as "YYYYMMDD" or one
+# month as "YYYYMM". A range ("YYYYMMDD-YYYYMMDD") is answered with a 400.
+espn_events <- function(dates) {
   # request via httr, the way wehoop itself does. Reading the URL straight into
   # jsonlite uses base R's url() connection, whose user agent ESPN answers with
   # a 403.
@@ -68,12 +64,12 @@ espn_final_games <- function(on_date) {
       "http://site.api.espn.com/apis/site/v2/sports/basketball/wnba",
       "/scoreboard?limit=1000&dates=%s"
     ),
-    format(on_date, "%Y%m%d")
+    dates
   )
 
   resp <- try(httr::RETRY("GET", url, times = 3, quiet = TRUE), silent = TRUE)
   if (inherits(resp, "try-error") || httr::status_code(resp) != 200) {
-    warning("could not reach ESPN for ", on_date, call. = FALSE)
+    warning("could not reach ESPN for ", dates, call. = FALSE)
     return(NULL)
   }
 
@@ -88,7 +84,21 @@ espn_final_games <- function(on_date) {
     return(NULL)
   }
 
-  rows <- lapply(payload$events, function(event) {
+  payload$events
+}
+
+# Completed games ESPN has for a single date, as schedule rows matching the
+# columns dashboard.qmd reads out of sched.
+#
+# Read from the raw ESPN endpoint rather than wehoop::espn_wnba_scoreboard()
+# because that helper drops competitions[].type, which carries the authoritative
+# type_id. type_id cannot be derived from season_type: season_type 2 covers
+# regular season (1), All-Star (4) and Commissioner's Cup (39) alike, and the
+# dashboard filters on type_id == 1, so guessing would pollute the leaderboards.
+espn_final_games <- function(on_date) {
+  events <- espn_events(format(on_date, "%Y%m%d"))
+
+  rows <- lapply(events, function(event) {
     comp <- event$competitions[[1]]
 
     # only completed games; anything in progress would land as a partial box
@@ -192,6 +202,106 @@ if (length(gap_dates) > 0) {
   }
 } else {
   message("bulk mirror is current through ", last_bulk_date)
+}
+
+
+# ---- ESPN upcoming games ----------------------------------------------------
+
+# Games ESPN lists for a month that are not final yet, as schedule rows in the
+# mirror's own column names and types.
+espn_upcoming_games <- function(month) {
+  events <- espn_events(format(month, "%Y%m"))
+
+  rows <- lapply(events, function(event) {
+    comp <- event$competitions[[1]]
+
+    # final games belong to the top-up above, which also brings their box score
+    if (identical(comp$status$type$name, "STATUS_FINAL")) {
+      return(NULL)
+    }
+
+    sides <- comp$competitors
+    names(sides) <- vapply(sides, function(x) x$homeAway, character(1))
+    home <- sides[["home"]]$team
+    away <- sides[["away"]]$team
+
+    # Eastern, as the mirror stores it. A slot with no tip-off time yet comes
+    # back as midnight Eastern, which dashboard.qmd reads as "Time TBD".
+    tip_off <- with_tz(ymd_hm(comp$date, tz = "UTC"), "America/New_York")
+
+    tibble::tibble(
+      game_id = as.integer(event$id),
+      date = as.character(comp$date),
+      start_date = as.character(comp$startDate %||% comp$date),
+      time_valid = as.logical(comp$timeValid %||% NA),
+      notes_headline = as.character(comp$notes[[1]]$headline %||% NA),
+      type_id = as.integer(comp$type$id),
+      type_abbreviation = as.character(comp$type$abbreviation),
+      venue_id = as.integer(comp$venue$id %||% NA),
+      venue_full_name = as.character(comp$venue$fullName %||% NA),
+      venue_address_city = as.character(comp$venue$address$city %||% NA),
+      venue_address_state = as.character(comp$venue$address$state %||% NA),
+      status_type_name = as.character(comp$status$type$name),
+      home_id = as.integer(home$id),
+      home_location = as.character(home$location),
+      home_name = as.character(home$name),
+      home_abbreviation = as.character(home$abbreviation),
+      home_display_name = as.character(home$displayName),
+      home_short_display_name = as.character(home$shortDisplayName),
+      home_logo = as.character(home$logo %||% NA),
+      away_id = as.integer(away$id),
+      away_location = as.character(away$location),
+      away_name = as.character(away$name),
+      away_abbreviation = as.character(away$abbreviation),
+      away_display_name = as.character(away$displayName),
+      away_short_display_name = as.character(away$shortDisplayName),
+      away_logo = as.character(away$logo %||% NA),
+      season = as.integer(event$season$year),
+      season_type = as.integer(event$season$type),
+      game_date_time = tip_off,
+      game_date = as.Date(tip_off, tz = "America/New_York"),
+      # the mirror keeps the first outlet's name and market here, and every
+      # outlet in `broadcast`
+      broadcast_market = as.character(
+        if (length(comp$broadcasts) > 0) comp$broadcasts[[1]]$market else ""
+      ),
+      broadcast_name = as.character(
+        if (length(comp$broadcasts) > 0) comp$broadcasts[[1]]$names[[1]] else ""
+      ),
+      broadcast = as.character(comp$broadcast %||% "")
+    )
+  })
+
+  bind_rows(rows)
+}
+
+# from this month through the last month the mirror's schedule reaches
+last_sched_date <- max(sched$game_date[sched$season == max(seasons)], na.rm = TRUE)
+upcoming_months <- if (last_sched_date >= Sys.Date()) {
+  seq(floor_date(Sys.Date(), "month"), floor_date(last_sched_date, "month"),
+      by = "month")
+} else {
+  as.Date(character(0))
+}
+
+upcoming <- bind_rows(lapply(upcoming_months, espn_upcoming_games))
+
+if ("game_id" %in% names(upcoming)) {
+  # a game with a box score is finished, whatever ESPN's status flag says
+  upcoming <- upcoming |>
+    filter(!game_id %in% dat$game_id)
+
+  sched <- sched |>
+    rows_update(
+      upcoming |> filter(game_id %in% sched$game_id),
+      by = "game_id",
+      unmatched = "ignore"
+    ) |>
+    bind_rows(upcoming |> filter(!game_id %in% sched$game_id))
+
+  message("refreshed ", nrow(upcoming), " upcoming game(s) from ESPN")
+} else {
+  message("ESPN lists no upcoming games")
 }
 
 
