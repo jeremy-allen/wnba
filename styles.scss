@@ -664,6 +664,32 @@ table,
   white-space: normal;
 }
 
+// Quarto marks every child of a dashboard card as a fill item: a column flexbox
+// that grows to share the card's height. The doubled class outranks that, so
+// the slider stays one row tall and the table keeps the height.
+.ps-day-filter.ps-day-filter {
+  display: flex;
+  flex: 0 0 auto;
+  flex-flow: row wrap;
+  align-items: center;
+  gap: 0.4rem 0.75rem;
+  padding: 0.6rem 0.75rem;
+  color: var(--bone);
+  font-size: 0.85rem;
+
+  input[type="range"] {
+    flex: 1 1 220px;
+    max-width: 420px;
+    accent-color: var(--orange);
+  }
+}
+
+#ps-day-value {
+  min-width: 8.5rem;
+  color: var(--orange-hi);
+  font-weight: 700;
+}
+
 .ps-games-mobile {
   display: none;
 }

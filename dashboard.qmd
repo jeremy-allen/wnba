@@ -2554,9 +2554,20 @@ playoff_schedule <- post_schedule |>
     )
   ) |>
   arrange(game_date, time_tbd, game_date_time, game_id) |>
-  mutate(date_class = paste0("ps-date-", (dense_rank(game_date) - 1L) %% 3L + 1L)) |>
+  # `day` numbers the dates that have a game, 1 for the earliest. The date
+  # slider above the schedule table steps through these rather than through the
+  # calendar, so every stop on it removes at least one game and none is a rest
+  # day. A number, because reactable serialises a Date column as a string.
+  mutate(
+    day = dense_rank(game_date),
+    day_label = paste0(format(game_date, "%a, %b "),
+                       as.integer(format(game_date, "%d"))),
+    date_class = paste0("ps-date-", (day - 1L) %% 3L + 1L)
+  ) |>
   select(when, matchup, watch, market, round, series, game, result,
-         game_id, completed, date_class)
+         game_id, completed, day, day_label, date_class)
+
+playoff_days <- playoff_schedule |> distinct(day, day_label) |> arrange(day)
 ```
 
 ```{r playoffs-2026-players}
@@ -3198,9 +3209,37 @@ div(
 
 ```{r playoff-games}
 #| title: Game schedule · where to watch
+# The slider sits outside the table and sets a filter on the hidden `day`
+# column through reactable's JavaScript API. The phone layout below is not a
+# reactable, so the same handler hides its cards by their `data-day`.
+playoff_day_js <- sprintf('
+function psFromDay(value) {
+  var day = Number(value);
+  var labels = %s;
+  document.getElementById("ps-day-value").textContent =
+    day > 1 ? labels[day - 1] + " onward" : "All dates";
+  Reactable.setFilter("playoff-games-table", "day", day > 1 ? day : undefined);
+  document.querySelectorAll(".ps-game-mobile").forEach(function(card) {
+    card.hidden = Number(card.dataset.day) < day;
+  });
+}', jsonlite::toJSON(playoff_days$day_label))
+
 tagList(
+  if (nrow(playoff_days) > 1) {
+    div(
+      class = "ps-day-filter",
+      tags$label(`for` = "ps-day-slider", "Hide games before"),
+      tags$input(
+        id = "ps-day-slider", type = "range",
+        min = 1, max = nrow(playoff_days), step = 1, value = 1,
+        oninput = "psFromDay(this.value)"
+      ),
+      span(id = "ps-day-value", "All dates"),
+      tags$script(HTML(playoff_day_js))
+    )
+  },
   playoff_schedule |>
-    select(when, matchup, watch, round, series, game, result) |>
+    select(when, matchup, watch, round, series, game, result, day) |>
     reactable(
       elementId = "playoff-games-table",
       compact = TRUE,
@@ -3221,7 +3260,15 @@ tagList(
         round = colDef(name = "Round", minWidth = 95),
         series = colDef(name = "Series", minWidth = 100),
         game = colDef(name = "Number", minWidth = 125),
-        result = colDef(name = "Result", minWidth = 100)
+        result = colDef(name = "Result", minWidth = 100),
+        day = colDef(
+          show = FALSE,
+          filterMethod = JS("function(rows, columnId, filterValue) {
+            return rows.filter(function(row) {
+              return row.values[columnId] >= filterValue
+            })
+          }")
+        )
       )
     ),
   div(
@@ -3230,6 +3277,7 @@ tagList(
       game <- playoff_schedule[i, ]
       div(
         class = paste("ps-game-mobile", game$date_class),
+        `data-day` = game$day,
         div(class = "ps-game-mobile-meta",
             span(game$when), span(paste(game$round, game$game, sep = " · "))),
         div(class = "ps-game-mobile-matchup", game$matchup),
