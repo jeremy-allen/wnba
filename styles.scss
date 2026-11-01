@@ -115,6 +115,11 @@ table,
   color: var(--mute-2);
 }
 
+.navbar-stamp a {
+  color: inherit;
+  text-decoration: underline;
+}
+
 // The way out of a selection or a team filter, inserted before the stamp by
 // compare_js and shown only while there is something to clear. It sits in the
 // navbar because what it clears is not a property of any one card: both kinds

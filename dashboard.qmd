@@ -177,8 +177,14 @@ fmt_date <- function(d) {
   paste0(format(d, "%b"), " ", as.integer(format(d, "%d")), ", ", format(d, "%Y"))
 }
 
+# The credit sits in the navbar so that it is on every page, and it stays beside
+# the dates because both answer where these numbers came from.
 freshness_stamp <- paste0(
-  "Data through ", fmt_date(max(dat$game_date, na.rm = TRUE)),
+  'Data: <a href="https://www.espn.com/wnba/" target="_blank" ',
+  'rel="noopener noreferrer">ESPN</a>, via ',
+  '<a href="https://wehoop.sportsdataverse.org/" target="_blank" ',
+  'rel="noopener noreferrer">wehoop</a>',
+  "  ·  Data through ", fmt_date(max(dat$game_date, na.rm = TRUE)),
   "  ·  Rendered ", fmt_date(Sys.Date())
 )
 
@@ -192,7 +198,7 @@ document.addEventListener("DOMContentLoaded", function () {
   if (!nav) return;
   var stamp = document.createElement("span");
   stamp.className = "navbar-stamp";
-  stamp.textContent = "%s";
+  stamp.innerHTML = \'%s\';
   nav.appendChild(stamp);
 });
 </script>',

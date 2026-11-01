@@ -1,5 +1,12 @@
 ## Where the numbers come from
 
+Every statistic, score, schedule, team crest and player photo on this dashboard
+comes from [ESPN](https://www.espn.com/wnba/), reached through the
+[wehoop](https://wehoop.sportsdataverse.org/) R package and the
+[sportsdataverse](https://www.sportsdataverse.org/) project. This is an
+independent, non-commercial project and is not affiliated with or endorsed by
+ESPN or the WNBA.
+
 `wehoop::load_wnba_player_box()` and `load_wnba_schedule()` read pre-built files
 from the **sportsdataverse-data** GitHub releases, a mirror of ESPN that rebuilds
 on its own schedule and usually runs a day or two behind. The mirror re-uploads
