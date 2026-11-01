@@ -23,6 +23,7 @@ library(wehoop)
 library(arrow) # required: see note 1 above
 library(dplyr)
 library(lubridate)
+source("checks.R")
 
 seasons <- c(2004:as.integer(year(now())))
 
@@ -343,6 +344,10 @@ stopifnot(
   "player box has games missing from the schedule" =
     length(setdiff(unique(dat$game_id), unique(sched$game_id))) == 0
 )
+
+# gate 3: a finished game is finished in both files. This runs before the save,
+# so a schedule ESPN could not repair leaves the last good caches in place.
+check_schedule_settled(dat, sched)
 
 saveRDS(dat, "dat.rds")
 saveRDS(sched, "sched.rds")

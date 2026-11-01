@@ -1406,6 +1406,8 @@ standings <- record |>
 ```
 
 ```{r champions-prep}
+source("checks.R")
+
 # Every title since 2004, off the schedule that has been loaded on every render
 # and never displayed. `type_id == 17` (FINAL) only exists from 2019 on; before
 # that the finals carry season_type 3 with type_id 1 and the round is named
@@ -1438,23 +1440,7 @@ early_titles <- tribble(
   2003L, "Detroit Shock"
 )
 
-# The winner of the last game played is the champion only once the series is
-# over. Mid-series it is just whoever won last: a Finals tied 3-3 would crown the
-# team that tied it. So a title waits for the wins the format required: best of
-# three in 2004, best of five through 2024, best of seven since.
-finals_wins_needed <- function(season) {
-  case_when(season >= 2025 ~ 4L, season >= 2005 ~ 3L, .default = 2L)
-}
-
-champions <- finals |>
-  arrange(season, game_date) |>
-  summarise(
-    champion = last(winner),
-    wins = sum(winner == last(winner)),
-    .by = season
-  ) |>
-  filter(wins >= finals_wins_needed(season)) |>
-  select(-wins) |>
+champions <- crown_champions(finals) |>
   bind_rows(early_titles) |>
   arrange(desc(season)) |>
   # A card carries the franchise's current name; the schedule carries the name
@@ -1468,7 +1454,7 @@ champions <- finals |>
     )
   )
 
-# The wins rule above drops a season whose finals games are missing from the
+# `crown_champions` drops a season whose finals games are missing from the
 # schedule, and a title has to fail the render rather than quietly disappear.
 stopifnot(
   "a finished season has no champion" =
@@ -2311,6 +2297,10 @@ stars <- titles |>
     x = star_x + star_seasons * radius * cos(angle),
     y = row + star_rows * radius * sin(angle)
   )
+
+check_stars_clear_crests(
+  distinct(stars, row, star_x), crests, crest_seasons, star_seasons
+)
 ```
 
 ```{r playoffs-2026-prep}
@@ -2512,6 +2502,15 @@ semifinals <- bind_rows(
 )
 final_series <- series_state(
   7L, "Finals", semifinals$winner_id[1], semifinals$winner_id[2], 4L
+)
+
+check_champion_matches_bracket(
+  champions,
+  playoff_year,
+  post_schedule |>
+    filter(home_id == final_series$winner_id) |>
+    pull(home_display_name) |>
+    first(default = NA_character_)
 )
 playoff_series <- bind_rows(first_round, semifinals, final_series)
 

@@ -3,7 +3,11 @@ default:
     @just --list
 
 # Refresh the data, rebuild the dashboard from it, and publish
-update: data render publish
+update: test data render publish
+
+# Run the offline tests of the champion rules and data checks
+test:
+    Rscript tests/test-checks.R
 
 # Regenerate dat.rds and sched.rds from the wehoop mirror, topped up from ESPN
 data:
