@@ -1438,9 +1438,23 @@ early_titles <- tribble(
   2003L, "Detroit Shock"
 )
 
+# The winner of the last game played is the champion only once the series is
+# over. Mid-series it is just whoever won last: a Finals tied 3-3 would crown the
+# team that tied it. So a title waits for the wins the format required: best of
+# three in 2004, best of five through 2024, best of seven since.
+finals_wins_needed <- function(season) {
+  case_when(season >= 2025 ~ 4L, season >= 2005 ~ 3L, .default = 2L)
+}
+
 champions <- finals |>
   arrange(season, game_date) |>
-  summarise(champion = last(winner), .by = season) |>
+  summarise(
+    champion = last(winner),
+    wins = sum(winner == last(winner)),
+    .by = season
+  ) |>
+  filter(wins >= finals_wins_needed(season)) |>
+  select(-wins) |>
   bind_rows(early_titles) |>
   arrange(desc(season)) |>
   # A card carries the franchise's current name; the schedule carries the name
@@ -1453,6 +1467,13 @@ champions <- finals |>
       champion
     )
   )
+
+# The wins rule above drops a season whose finals games are missing from the
+# schedule, and a title has to fail the render rather than quietly disappear.
+stopifnot(
+  "a finished season has no champion" =
+    all(1997:(this_year - 1L) %in% champions$season)
+)
 ```
 
 ```{r standings-js}
@@ -2264,6 +2285,10 @@ stopifnot(
 # own 1/phi^2. `star_rows` is the outer radius, about half a crest; the two axes
 # are in different units, so its width in seasons comes from the same conversion
 # the crests take above.
+#
+# A title in the season the record stops lands where the crest stands, and the
+# crest would cover it. That star moves left along the line to sit against the
+# crest, because hiding the crest or the title both lose the point of the mark.
 star_rows <- 0.22
 star_seasons <- star_rows * row_in / season_in
 
@@ -2273,10 +2298,17 @@ star_points <- tibble(
 )
 
 stars <- titles |>
-  mutate(title_id = row_number()) |>
+  mutate(
+    title_id = row_number(),
+    star_x = if_else(
+      season == last_season & champion %in% crests$era,
+      season - crest_seasons / 2 - star_seasons,
+      season
+    )
+  ) |>
   cross_join(star_points) |>
   mutate(
-    x = season + star_seasons * radius * cos(angle),
+    x = star_x + star_seasons * radius * cos(angle),
     y = row + star_rows * radius * sin(angle)
   )
 ```

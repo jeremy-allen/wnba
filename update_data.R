@@ -95,6 +95,11 @@ espn_events <- function(dates) {
 # type_id. type_id cannot be derived from season_type: season_type 2 covers
 # regular season (1), All-Star (4) and Commissioner's Cup (39) alike, and the
 # dashboard filters on type_id == 1, so guessing would pollute the leaderboards.
+#
+# The status and winner columns matter as much as the score: dashboard.qmd reads
+# status_type_completed and home_winner to name each season's champion, so a row
+# that gets a final score and keeps its "Scheduled" status is a game that never
+# counted.
 espn_final_games <- function(on_date) {
   events <- espn_events(format(on_date, "%Y%m%d"))
 
@@ -124,7 +129,15 @@ espn_final_games <- function(on_date) {
       home_score = as.integer(home$score %||% NA),
       away_display_name = as.character(away$team$displayName),
       away_score = as.integer(away$score %||% NA),
-      attendance = as.numeric(comp$attendance %||% NA)
+      attendance = as.numeric(comp$attendance %||% NA),
+      status_type_name = as.character(comp$status$type$name),
+      status_type_state = as.character(comp$status$type$state),
+      status_type_completed = TRUE,
+      status_type_description = as.character(comp$status$type$description),
+      status_type_detail = as.character(comp$status$type$detail),
+      status_type_short_detail = as.character(comp$status$type$shortDetail),
+      home_winner = as.logical(home$winner %||% NA),
+      away_winner = as.logical(away$winner %||% NA)
     )
   })
 
@@ -138,22 +151,33 @@ gap_dates <- if (last_bulk_date < Sys.Date()) {
   as.Date(character(0))
 }
 
-if (length(gap_dates) > 0) {
+# The two mirror files are separate uploads, so the box scores can hold a game
+# the schedule still calls upcoming. Those dates are past the box score check
+# above, and no gap would ever bring them back, so they are asked about by name.
+stale_dates <- sched |>
+  filter(game_id %in% dat$game_id, !status_type_completed %in% TRUE) |>
+  pull(game_date) |>
+  as.Date()
+
+check_dates <- sort(unique(c(gap_dates, stale_dates)))
+
+if (length(check_dates) > 0) {
   message(
     "bulk mirror ends ", last_bulk_date, "; checking ESPN for ",
-    length(gap_dates), " day(s) through ", Sys.Date(), " ..."
+    length(check_dates), " day(s) through ", max(check_dates), " ..."
   )
 
-  new_games <- bind_rows(lapply(gap_dates, espn_final_games))
+  espn_games <- bind_rows(lapply(check_dates, espn_final_games))
 
   # every day may come back empty or unreachable, leaving a 0-column frame
-  if (!"game_id" %in% names(new_games)) {
-    new_games <- new_games[0, ]
+  if (!"game_id" %in% names(espn_games)) {
+    espn_games <- espn_games[0, ]
+    new_games <- espn_games
   } else {
     # dedupe against the player box, not the schedule. The mirror's schedule
     # already lists these games -- it just still has them as upcoming, with no
     # score -- so filtering on sched$game_id would discard every one of them.
-    new_games <- new_games |>
+    new_games <- espn_games |>
       filter(!game_id %in% dat$game_id)
   }
 
@@ -176,26 +200,29 @@ if (length(gap_dates) > 0) {
       out
     }))
 
-    # only keep games whose box scores actually arrived, so the left_join in
-    # dashboard.qmd never yields a game with no player rows
-    new_games <- new_games |>
-      filter(game_id %in% unique(new_box$game_id))
-
     dat <- bind_rows(dat, new_box)
+  }
 
-    # refresh the stale scheduled rows in place (final score, confirmed type)
-    # and append anything the mirror's schedule does not know about at all
+  # only keep games whose box scores actually arrived, so the left_join in
+  # dashboard.qmd never yields a game with no player rows
+  espn_games <- espn_games |>
+    filter(game_id %in% dat$game_id)
+
+  if (nrow(espn_games) > 0) {
+    # refresh the stale scheduled rows in place (final score, status, winner,
+    # confirmed type) and append anything the mirror's schedule does not know
+    # about at all
     sched <- sched |>
       rows_update(
-        new_games |> filter(game_id %in% sched$game_id),
+        espn_games |> filter(game_id %in% sched$game_id),
         by = "game_id",
         unmatched = "ignore"
       ) |>
-      bind_rows(new_games |> filter(!game_id %in% sched$game_id))
+      bind_rows(espn_games |> filter(!game_id %in% sched$game_id))
 
     message(
-      "topped up ", nrow(new_games), " game(s) from ESPN, through ",
-      max(new_games$game_date)
+      "topped up ", nrow(espn_games), " game(s) from ESPN, through ",
+      max(espn_games$game_date)
     )
   } else {
     message("ESPN has no completed games the mirror is missing")
