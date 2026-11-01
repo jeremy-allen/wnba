@@ -146,6 +146,12 @@ would not. ESPN has issued two ids to one player three times over, for Li Yueru
 recent name each id used merges the six name changes and leaves the three
 duplicate ids merged as well.
 
+Four players took a new id along with a new name, so nothing in the box scores
+connects their two careers: Katie Feenstra and Katie Mattera, Erin Buescher and
+Erin Perperoglou, Shanna Zolman and Shanna Crossley, and Tamika Williams-Jeter and
+Tamika Raymond. Those four are merged by a short hand-kept list, under the name
+the league lists each career by.
+
 ## Points and per-game averages
 
 - **Totals:** the sum of `points` across counted games.
@@ -234,18 +240,43 @@ Jackson lose more.
 
 ## How these totals compare with the league's
 
-Measured against
+Measured on November 1, 2026 against a copy of
 [stats.wnba.com/alltime-leaders](https://stats.wnba.com/alltime-leaders/) at
-regular season and totals, eighteen of the top twenty careers agree to within 30
-points, a few tenths of one percent, and Brittney Griner, Angel McCoughtry and
-Skylar Diggins agree exactly, games included. The two that do not are Bird and
-Catchings, for the reason above.
+regular season and totals, the 758 careers the league lists sort by cause as
+below. The league's table requires 31 games, and that copy stopped at August 16,
+2026, so the comparison stops there too.
 
-The remaining fraction is the mirror itself. Of the games played between 2004
-and 2018, 47 have a schedule row and no box score at all, 23 of them in 2004, so
-the totals here run slightly light: Diana Taurasi at 10,525 against the league's
-10,646, Cappie Pondexter at 6,741 against 6,811. That gap belongs to the source
-rather than to any rule on this page, and nothing here works around it.
+| Cause | Careers | Points short |
+|---|---|---|
+| Exact on games, points, rebounds and assists | 280 | 0 |
+| Some seasons before 2004 | 139 | 134,189 |
+| Entire career before 2004 | 138 | 65,080 |
+| Missing or partial box scores | 137 | 2,232 |
+| Same stats, game count differs | 32 | 0 |
+| Not explained | 21 | 640 |
+| Same games, small stat differences | 8 | -2 |
+| More games here than the league | 3 | -37 |
+
+Seasons before 2004 are 98.6% of the points short. The causes are inferred from
+the size of each gap rather than read from a source, so a career that opened in
+2003 can land under "not explained" if it lost few games. `reconcile_careers.R`
+reproduces the table.
+
+In the league's top twenty careers, six lost seasons before 2004. Of the other
+fourteen, twelve agree to within 30 points and four agree exactly: Nneka Ogwumike,
+A'ja Wilson, Brittney Griner and Kayla McBride. The widest gaps are Diana Taurasi
+at 10,525 against the league's 10,646 and Cappie Pondexter at 6,741 against 6,811.
+
+Those gaps come from the source. Between 2004 and 2018, 45 regular-season games
+have a schedule row and no box score, 21 of them in 2004. ESPN's own game pages
+list the players for most of those games with blank stats, and only two carry a
+complete set of points, so nothing here works around them. Another 153 games from
+2004 to 2012 have a box score whose players add up to fewer points than the final
+score, 953 points in all.
+
+About 200 rows have no minutes recorded, and the league counts some of them as
+games played and not others. Dropping them all fixes the careers that show a game
+too many and breaks careers that agree exactly, so they stay in.
 
 Two rules of this dashboard put its career totals below other sources by
 design. Career totals exclude playoff performances, so every career total runs

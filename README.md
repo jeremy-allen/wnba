@@ -84,7 +84,8 @@ State, Toronto and Portland along with the exhibitions.
 **One career, one name.** Every box-score row an `athlete_id` owns takes the
 most recent name that id used, so a player who has changed hers holds one career
 rather than two, Skylar Diggins carrying all 5,758 of her points instead of
-4,255 under one name and 1,541 under another.
+4,255 under one name and 1,541 under another. Four players whom ESPN gave a new
+id as well as a new name are merged by a short list in `checks.R`.
 
 **The box scores start in 2004**, and the league started in 1997, so a career
 that opened earlier is counted only from 2004 on.
@@ -119,8 +120,8 @@ identified, or once every series in that round is decided.
 
 📄 **[METHODOLOGY.md](METHODOLOGY.md)** states the full rules, what the 2004
 floor costs each pre-2004 career, and how the rest measures against the league's
-own all-time figures, eighteen of the top twenty careers landing within a few
-tenths of one percent and three of them exact.
+own all-time figures, with all 758 careers the league lists sorted by the cause
+of their gap.
 
 ---
 
@@ -309,6 +310,9 @@ new data to publishing would upload the previous build and report success.
 | `dashboard.qmd` | the whole dashboard: data prep, helpers, widgets, JavaScript |
 | `styles.scss` | theme tokens and the CSS behind every interactive state |
 | `update_data.R` | wehoop pull, ESPN top-up, assertions, cache write |
+| `checks.R` | champion rule, career names, and the checks that stop a bad update |
+| `tests/test-checks.R` | offline tests of `checks.R`, run with `just test` |
+| `reconcile_careers.R` | sorts each career's gap from the league's totals by cause |
 | `slim_dashboard.R` | post-render removal of Quarto's duplicate stylesheets |
 | `justfile` | data, then render, then publish |
 | `METHODOLOGY.md` | what counts as a game, and the differences from ESPN |

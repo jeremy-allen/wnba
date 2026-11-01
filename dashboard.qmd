@@ -45,6 +45,8 @@ library(arrow)
 
 
 ```{r data}
+source("checks.R")
+
 this_year <- as.integer(year(now()))
 
 seasons <- c(2004:as.integer(this_year))
@@ -139,7 +141,10 @@ dat <- dat |>
       athlete_display_name[which.max(game_date)]
     },
     .by = athlete_id
-  )
+  ) |>
+  # An id cannot join what ESPN split across two ids, so `career_name` does that
+  # by name, and clears the double spaces out of the 2000s names as well.
+  mutate(athlete_display_name = career_name(athlete_display_name))
 
 games <- dat |>
   filter(season == this_year) |>
@@ -1412,8 +1417,6 @@ standings <- record |>
 ```
 
 ```{r champions-prep}
-source("checks.R")
-
 # Every title since 2004, off the schedule that has been loaded on every render
 # and never displayed. `type_id == 17` (FINAL) only exists from 2019 on; before
 # that the finals carry season_type 3 with type_id 1 and the round is named
@@ -3815,9 +3818,9 @@ Every total on this page is regular season only, and the box scores start in
 counted only from 2004 on: Sue Bird, Tamika Catchings, Lisa Leslie, Sheryl
 Swoopes, Tina Thompson, Katie Smith and Lauren Jackson each played seasons this
 page cannot see, and each sits below her official career line by exactly what
-it cannot see. From 2004 on these match the league's own figures to within a
-few tenths of a percent — that last fraction is games ESPN never filed a box
-score for, 23 of them in 2004 alone. The Methods page has the detail.
+it cannot see. From 2004 on most careers match the league's own figures exactly
+or to within about 1%. The rest is games with missing or incomplete box scores,
+21 of them in 2004 alone. The Methods page has the detail.
 :::
 
 # Franchises

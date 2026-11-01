@@ -34,6 +34,29 @@ gsv <- "Golden State Valkyries"
 atl <- "Atlanta Dream"
 tied_series <- c(gsv, atl, atl, gsv, gsv, atl)
 
+# ---- career_name ------------------------------------------------------------
+
+report(
+  career_name("Lauren  Jackson") == "Lauren Jackson",
+  "a double space in a name collapses to one"
+)
+report(
+  career_name("Katie Feenstra") == "Katie Mattera",
+  "a career ESPN split under two ids takes one name"
+)
+report(
+  career_name("Katie  Feenstra") == "Katie Mattera",
+  "a split career still merges when its name has a double space"
+)
+report(
+  career_name("Katie Mattera") == "Katie Mattera",
+  "the name a split career merges into stays as it is"
+)
+report(
+  identical(career_name(c("A'ja Wilson", NA)), c("A'ja Wilson", NA)),
+  "other names and missing names pass through"
+)
+
 # ---- crown_champions --------------------------------------------------------
 
 report(

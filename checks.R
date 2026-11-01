@@ -8,6 +8,23 @@
 
 library(dplyr)
 
+# One player, two careers: ESPN gave these four a new athlete id along with a new
+# name, so nothing in the box scores connects the two. Each maps to the name the
+# league lists her career under.
+same_player <- c(
+  "Katie Feenstra" = "Katie Mattera",
+  "Erin Buescher" = "Erin Perperoglou",
+  "Shanna Crossley" = "Shanna Zolman",
+  "Tamika Williams-Jeter" = "Tamika Raymond"
+)
+
+# The name a career goes by. ESPN writes many names from the 2000s with two
+# spaces, which shows as one space on the page and fails an exact match.
+career_name <- function(name) {
+  clean <- trimws(gsub("\\s+", " ", name))
+  coalesce(unname(same_player[clean]), clean)
+}
+
 # Best of three in 2004, best of five through 2024, best of seven since.
 finals_wins_needed <- function(season) {
   case_when(season >= 2025 ~ 4L, season >= 2005 ~ 3L, .default = 2L)

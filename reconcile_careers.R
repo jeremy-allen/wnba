@@ -10,6 +10,7 @@
 library(dplyr)
 library(readr)
 library(stringr)
+source("checks.R")
 
 # The league table stopped updating partway through 2026. This is the date at
 # which the most careers match it exactly; a later copy of the table needs a
@@ -17,10 +18,9 @@ library(stringr)
 # many games.
 league_through <- as.Date("2026-08-16")
 
-# The same career under two names. Each entry maps the name used here to the
-# name the league uses. Several names can map to one league career: ESPN gave
-# these players a new id when they changed names, so the name-canonicalising
-# step in dashboard.qmd leaves them split into two careers.
+# The same career under another spelling. Each entry maps the name used here to
+# the name the league uses, and only matters to this comparison. Careers that are
+# actually split in two are merged for the dashboard by `same_player` in checks.R.
 league_names <- c(
   "Camille Little" = "Camille Smith",
   "Iziane Castro" = "Iziane Castro Marques",
@@ -38,11 +38,6 @@ league_names <- c(
   "Clarissa dos Santos" = "Clarissa Dos Santos",
   "Marie Gulich" = "Marie Gülich",
   "Ji-Su Park" = "JiSu Park",
-  # split into two careers on this dashboard
-  "Katie Feenstra" = "Katie Mattera",
-  "Erin Buescher" = "Erin Perperoglou",
-  "Shanna Crossley" = "Shanna Zolman",
-  "Tamika Williams-Jeter" = "Tamika Raymond",
   "Nikki McCray-Penson" = "Nikki McCray"
 )
 
@@ -101,8 +96,8 @@ box <- raw_box |>
   ) |>
   filter(game_kind == "regular", game_date <= league_through) |>
   mutate(
-    # ESPN puts two spaces in many names of the 2000s
-    plain = str_squish(stringi::stri_trans_general(athlete_display_name, "Latin-ASCII")),
+    athlete_display_name = career_name(athlete_display_name),
+    plain = stringi::stri_trans_general(athlete_display_name, "Latin-ASCII"),
     player = coalesce(unname(league_names[athlete_display_name]), plain)
   )
 
